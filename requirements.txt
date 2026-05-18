@@ -1,0 +1,29 @@
+# VocalSieve -- 核心依赖清单
+# ===========================
+#
+# 安装方式:
+#   pip install -r requirements.txt
+#
+# 注意:
+#   PyTorch 需要根据你的 CUDA 版本选择对应的安装命令。
+#   以下声明的是 CPU 版 torch 作为最低兼容项。
+#   如果你有 NVIDIA 显卡，请先从 https://pytorch.org/get-started/locally/
+#   安装对应 CUDA 版本的 PyTorch，再运行 pip install -r requirements.txt。
+#
+#   例如 CUDA 12.1:
+#     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# --- 核心音频处理 ---
+librosa>=0.10.0           # 音频加载、特征提取（RMS、频谱质心等）
+numpy>=1.24.0             # 数值计算基础库
+soundfile>=0.12.0         # librosa 的后端音频 I/O 引擎
+
+# --- AI 语义分析 ---
+openai-whisper>=20231117  # OpenAI Whisper 语音转录模型
+
+# --- 工具 ---
+tqdm>=4.60.0              # 进度条（CLI 模式使用，UI 模式下由回调替代）
+
+# --- 本地桌面界面 ---
+pywebview>=5.0            # 本地 WebView 容器，用于运行 C 端控制台
+pyperclip>=1.8.2          # 剪贴板复制工具；不可用时后端会回退到 ctypes

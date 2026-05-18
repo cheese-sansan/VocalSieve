@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VocalSieve Dashboard</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+    <div id="app" v-cloak>
+        <div class="grid-backdrop"></div>
+
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none">
+                        <path d="M4 5h16l-6.4 7.7v5.1l-3.2 1.8v-6.9L4 5Z" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>{{ t('app_title') }}</h1>
+                </div>
+            </div>
+
+            <div class="topbar-actions">
+                <button class="icon-button theme-button" @click="toggleTheme" :title="t('tooltip_theme')" type="button">
+                    <svg v-if="isDarkTheme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/>
+                    </svg>
+                    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="4"/>
+                        <path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/>
+                    </svg>
+                </button>
+                <button class="icon-button" @click="openSettings('sys')" :title="t('tooltip_settings')" type="button">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z"/>
+                        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.86l.04.04a2 2 0 0 1-2.83 2.83l-.04-.04a1.7 1.7 0 0 0-1.86-.34 1.7 1.7 0 0 0-1.05 1.57V21a2 2 0 0 1-4 0v-.08A1.7 1.7 0 0 0 8.95 19.35a1.7 1.7 0 0 0-1.86.34l-.04.04a2 2 0 1 1-2.83-2.83l.04-.04A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.57-1.05H3a2 2 0 1 1 0-4h.03A1.7 1.7 0 0 0 4.6 8.9a1.7 1.7 0 0 0-.34-1.86l-.04-.04a2 2 0 0 1 2.83-2.83l.04.04a1.7 1.7 0 0 0 1.86.34H9a1.7 1.7 0 0 0 1-1.57V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1.05 1.57 1.7 1.7 0 0 0 1.86-.34l.04-.04a2 2 0 0 1 2.83 2.83l-.04.04A1.7 1.7 0 0 0 19.4 8.9v.05A1.7 1.7 0 0 0 20.97 10H21a2 2 0 1 1 0 4h-.03A1.7 1.7 0 0 0 19.4 15Z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="workspace">
+            <section class="setup-panel" :class="{ 'is-locked': isRunning }">
+                <div class="section-heading">
+                    <h2>{{ t('setup_title') }}</h2>
+                </div>
+
+                <div class="field-stack">
+                    <label class="field">
+                        <span>{{ t('source_dir') }}</span>
+                        <div class="path-control">
+                            <input type="text" v-model="config.source_dir" :placeholder="t('placeholder_source')" readonly>
+                            <button class="secondary-button" @click="selectDir('source')" :disabled="isRunning" type="button">{{ t('select_dir') }}</button>
+                        </div>
+                    </label>
+
+                    <label class="field">
+                        <span>{{ t('output_dir') }}</span>
+                        <div class="path-control">
+                            <input type="text" v-model="config.output_dir" :placeholder="t('placeholder_output')" readonly>
+                            <button class="secondary-button" @click="selectDir('output')" :disabled="isRunning" type="button">{{ t('select_dir') }}</button>
+                        </div>
+                    </label>
+                </div>
+
+                <div class="field">
+                    <span>{{ t('preset_title') }}</span>
+                    <div class="preset-grid">
+                        <label class="preset-option" :class="{ active: config.preset === 'performance' }">
+                            <input type="radio" value="performance" v-model="config.preset" :disabled="isRunning">
+                            <strong>{{ t('preset_perf') }}</strong>
+                            <small>{{ t('preset_perf_desc') }}</small>
+                        </label>
+                        <label class="preset-option" :class="{ active: config.preset === 'balanced' }">
+                            <input type="radio" value="balanced" v-model="config.preset" :disabled="isRunning">
+                            <strong>{{ t('preset_bal') }}</strong>
+                            <small>{{ t('preset_bal_desc') }}</small>
+                        </label>
+                        <label class="preset-option" :class="{ active: config.preset === 'quality' }">
+                            <input type="radio" value="quality" v-model="config.preset" :disabled="isRunning">
+                            <strong>{{ t('preset_qual') }}</strong>
+                            <small>{{ t('preset_qual_desc') }}</small>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="split-fields">
+                    <div class="field">
+                        <span>{{ t('target_lang') }}</span>
+                        <div class="custom-select" @click="!isRunning && (isLangDropdownOpen = !isLangDropdownOpen)">
+                            <button class="select-trigger" :class="{ open: isLangDropdownOpen }" type="button" :disabled="isRunning">
+                                <span>{{ selectedLangName }}</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="m6 9 6 6 6-6"/>
+                                </svg>
+                            </button>
+                            <div class="select-menu" :class="{ open: isLangDropdownOpen }">
+                                <button v-for="lang in supportedLanguages" :key="lang.code" type="button" class="select-option" :class="{ active: config.target_language === lang.code }" @click.stop="selectLang(lang.code)">
+                                    {{ getLangName(lang.code) }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <label class="field">
+                        <span>{{ t('top_n') }}</span>
+                        <input type="number" v-model.number="config.top_n" min="1" max="10000" :disabled="isRunning">
+                    </label>
+                </div>
+
+                <div class="advanced-box">
+                    <button class="advanced-toggle" @click="isAdvancedOpen = !isAdvancedOpen" type="button">
+                        <span>{{ t('adv_settings') }}</span>
+                        <svg :class="{ open: isAdvancedOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="m6 9 6 6 6-6"/>
+                        </svg>
+                    </button>
+                    <div class="advanced-content" :class="{ open: isAdvancedOpen }">
+                        <div class="split-fields">
+                            <label class="field">
+                                <span>{{ t('adv_rms') }}</span>
+                                <input type="number" step="0.001" v-model.number="config.min_rms" :disabled="isRunning">
+                            </label>
+                            <label class="field">
+                                <span>{{ t('adv_centroid') }}</span>
+                                <input type="number" step="10" v-model.number="config.min_centroid" :disabled="isRunning">
+                            </label>
+                            <label class="field">
+                                <span>{{ t('adv_duration') }}</span>
+                                <input type="number" step="0.1" v-model.number="config.min_duration" :disabled="isRunning">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="run-panel">
+                <div class="signal-panel">
+                    <button
+                        class="run-button"
+                        :class="runButtonState"
+                        :disabled="!canStart && !isRunning"
+                        @click="handleRunButton"
+                        type="button"
+                    >
+                        <span class="run-button-fill" :style="{ width: progressPercent + '%' }" aria-hidden="true"></span>
+                        <span class="run-button-noise" aria-hidden="true"></span>
+                        <span class="run-button-content">
+                            <strong>{{ runButtonLabel }}</strong>
+                        </span>
+                        <span class="run-button-percent">{{ roundedProgress }}%</span>
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <div class="modal-backdrop" v-if="isSettingsOpen" @click.self="closeSettings">
+            <div class="modal-card settings-modal">
+                <div class="modal-header">
+                    <h2>{{ t('settings_title') }}</h2>
+                    <button class="icon-button" @click="closeSettings" type="button" :title="t('btn_close')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6 6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="settings-layout">
+                    <nav class="settings-tabs">
+                        <button :class="{ active: activeTab === 'sys' }" @click="activeTab = 'sys'" type="button">{{ t('tab_sys') }}</button>
+                        <button :class="{ active: activeTab === 'env' }" @click="activeTab = 'env'" type="button">{{ t('tab_env') }}</button>
+                        <button :class="{ active: activeTab === 'log' }" @click="activeTab = 'log'" type="button">{{ t('tab_log') }}</button>
+                    </nav>
+
+                    <div class="settings-content">
+                        <div v-show="activeTab === 'sys'" class="setting-page">
+                            <label class="setting-row">
+                                <div class="setting-labels">
+                                    <span>{{ t('lang_setting') }}</span>
+                                </div>
+                                <div class="setting-select-wrap">
+                                    <div class="custom-select" @click="isDisplayLangDropdownOpen = !isDisplayLangDropdownOpen">
+                                        <button class="select-trigger" :class="{ open: isDisplayLangDropdownOpen }" type="button">
+                                            <span>{{ displayLangName }}</span>
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                                <path d="m6 9 6 6 6-6"/>
+                                            </svg>
+                                        </button>
+                                        <div class="select-menu" :class="{ open: isDisplayLangDropdownOpen }">
+                                            <button
+                                                v-for="option in displayLanguageOptions"
+                                                :key="option.code"
+                                                type="button"
+                                                class="select-option"
+                                                :class="{ active: currentLang === option.code }"
+                                                @click.stop="selectDisplayLanguage(option.code)"
+                                            >
+                                                {{ option.label }}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div v-show="activeTab === 'env'" class="setting-page env-status">
+                            <div v-if="envLoaded" class="env-grid">
+                                <div><span>{{ t('env_py') }}</span><strong :class="{ ok: env.python_ok, bad: !env.python_ok }">{{ env.python_version || '-' }}</strong></div>
+                                <div><span>{{ t('env_torch') }}</span><strong :class="{ ok: env.torch_available, bad: !env.torch_available }">{{ env.torch_available ? 'Ready' : 'Missing' }}</strong></div>
+                                <div><span>{{ t('env_gpu') }}</span><strong :class="{ ok: env.cuda_available, warn: !env.cuda_available }">{{ env.gpu_name || 'CPU' }}</strong></div>
+                                <div><span>{{ t('env_whisper') }}</span><strong :class="{ ok: env.whisper_available, bad: !env.whisper_available }">{{ env.whisper_available ? 'Ready' : 'Missing' }}</strong></div>
+                                <div><span>{{ t('env_ffmpeg') }}</span><strong :class="{ ok: env.ffmpeg_found, bad: !env.ffmpeg_found }">{{ env.ffmpeg_found ? 'Found' : 'Missing' }}</strong></div>
+                            </div>
+                            <div v-else class="loading-line">{{ t('env_scanning') }}</div>
+                            <div v-if="env.issues && env.issues.length > 0" class="issue-box">
+                                <div v-for="(issue, index) in env.issues" :key="index">{{ issue }}</div>
+                            </div>
+                        </div>
+
+                        <div v-show="activeTab === 'log'" class="setting-page log-page">
+                            <div class="log-toolbar">
+                                <button class="secondary-button" @click="copyLogs" type="button">{{ t('btn_copy') }}</button>
+                                <button class="secondary-button" @click="exportLogs" type="button">{{ t('btn_export') }}</button>
+                            </div>
+                            <div class="log-container" ref="consoleBody">
+                                <div v-if="logs.length === 0" class="empty-line">{{ t('log_empty') }}</div>
+                                <div v-for="(log, idx) in logs" :key="idx" class="log-line" :class="'log-' + log.level.toLowerCase()">
+                                    <span>{{ log.time }}</span>
+                                    <strong>[{{ log.level }}]</strong>
+                                    <em>{{ log.message }}</em>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-backdrop" v-if="isAlertOpen">
+            <div class="modal-card alert-modal">
+                <div class="modal-header">
+                    <h2>{{ t('alert_title') }}</h2>
+                </div>
+                <div class="alert-body">
+                    <p>{{ t('alert_desc') }}</p>
+                    <ul>
+                        <li v-for="(issue, idx) in alertIssues" :key="idx">{{ issue }}</li>
+                    </ul>
+                    <div class="alert-actions">
+                        <button class="primary-action compact" @click="closeAlert" type="button">{{ t('alert_btn') }}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./lib/vue.global.prod.js"></script>
+    <script src="./app.js"></script>
+</body>
+</html>
