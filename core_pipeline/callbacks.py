@@ -8,7 +8,20 @@ core_pipeline/callbacks.py
 Protocol 允许调用方只实现同名方法，不需要继承具体基类。
 """
 
+import sys
 from typing import Protocol, runtime_checkable
+
+
+def _safe_print(message: str = "") -> None:
+    """Write CLI logs without letting console encoding errors stop a run."""
+    text = f"{message}\n"
+    stream = sys.stdout
+    try:
+        stream.write(text)
+    except UnicodeEncodeError:
+        encoding = stream.encoding or "utf-8"
+        stream.write(text.encode(encoding, errors="replace").decode(encoding))
+    stream.flush()
 
 
 @runtime_checkable
@@ -53,9 +66,9 @@ class ConsoleCallback:
 
     def on_stage_start(self, stage: str, total: int) -> None:
         """打印阶段开始信息。"""
-        print(f"\n{'=' * 50}")
-        print(f"[{stage}] 开始处理，共 {total} 个文件")
-        print(f"{'=' * 50}")
+        _safe_print(f"\n{'=' * 50}")
+        _safe_print(f"[{stage}] 开始处理，共 {total} 个文件")
+        _safe_print(f"{'=' * 50}")
 
     def on_item_done(
         self,
@@ -70,15 +83,16 @@ class ConsoleCallback:
         pct = (current / total * 100) if total > 0 else 0
         status = "PASS" if accepted else "FAIL"
         suffix = f" | {detail}" if detail else ""
-        print(f"  [{current}/{total}] ({pct:5.1f}%) {status} {item_name}{suffix}")
+        _safe_print(f"  [{current}/{total}] ({pct:5.1f}%) {status} {item_name}{suffix}")
 
     def on_stage_end(self, stage: str, stats: dict) -> None:
         """打印阶段汇总。"""
-        print(f"\n[{stage}] 阶段完成:")
+        _safe_print(f"\n[{stage}] 阶段完成:")
         for key, value in stats.items():
-            print(f"  {key}: {value}")
-        print(f"{'=' * 50}")
+            _safe_print(f"  {key}: {value}")
+        _safe_print(f"{'=' * 50}")
 
     def on_log(self, level: str, message: str) -> None:
         """打印日志行。"""
-        print(f"[{level}] {message}")
+        _safe_print(f"[{level}] {message}")
+
