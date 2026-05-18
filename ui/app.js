@@ -1,4 +1,4 @@
-const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
+const { createApp, ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } = Vue;
 
 const I18N = {
     zh: {
@@ -25,14 +25,17 @@ const I18N = {
         adv_centroid: '最低频率质心 (Hz)',
         adv_duration: '最短时长 (秒)',
         state_idle: '等待开始',
+        state_starting: '正在启动',
         state_running: '正在筛选',
+        state_canceling: '正在中止',
         state_done: '任务完成',
+        state_failed: '任务失败',
         state_stopped: '任务中断',
-        progress_idle: '选择目录后即可启动任务',
         btn_start: '开始运行',
+        btn_starting: '启动中',
         btn_running: '运行中',
         btn_restart: '重新运行',
-        btn_cancel: '点击中止',
+        btn_canceling: '中止中',
         view_logs: '查看日志',
         settings_title: '偏好设置',
         btn_close: '关闭',
@@ -54,16 +57,16 @@ const I18N = {
         alert_title: '系统提示',
         alert_desc: '检测到以下可能影响运行的问题：',
         alert_btn: '知道了',
-        bridge_missing: '未检测到 PyWebview 桥接，浏览器预览模式下无法启动后端任务。',
+        bridge_missing: '未检测到 PyWebview 桥接，当前预览环境不能启动后端任务。',
         copied: '日志已复制到剪贴板',
         exported: '日志已导出至',
         copy_failed: '复制失败',
         export_failed: '导出失败',
         dir_failed: '目录选择失败',
-        canceling: '已发送取消信号，等待当前文件结束',
+        canceling: '已发送取消信号，等待当前文件处理结束',
         starting_engine: '正在请求底层处理引擎...',
         pipeline_started: '后端任务已启动',
-        pipeline_done: '提取结束',
+        pipeline_done: '筛选完成',
         pipeline_cancelled: '任务已取消',
         pipeline_failed: '任务失败',
         no_gpu: '未探测到兼容的 NVIDIA GPU，Whisper 可能会以 CPU 模式运行。'
@@ -83,7 +86,7 @@ const I18N = {
         preset_perf_desc: 'Optimized for quick first-pass review of a large folder.',
         preset_bal: 'Balanced',
         preset_bal_desc: 'Recommended default with steadier speed and recognition quality.',
-        preset_qual: 'Quality',
+        preset_qual: 'Quality First',
         preset_qual_desc: 'Best for final export when longer runtime is acceptable.',
         target_lang: 'Audio Language',
         top_n: 'Retention Count',
@@ -92,14 +95,17 @@ const I18N = {
         adv_centroid: 'Min Spectral Centroid (Hz)',
         adv_duration: 'Min Duration (s)',
         state_idle: 'Ready',
+        state_starting: 'Starting',
         state_running: 'Filtering',
+        state_canceling: 'Stopping',
         state_done: 'Completed',
+        state_failed: 'Failed',
         state_stopped: 'Interrupted',
-        progress_idle: 'Select folders to start the pipeline',
         btn_start: 'Start Run',
+        btn_starting: 'Starting',
         btn_running: 'Running',
         btn_restart: 'Run Again',
-        btn_cancel: 'Click To Abort',
+        btn_canceling: 'Stopping',
         view_logs: 'View Logs',
         settings_title: 'Preferences',
         btn_close: 'Close',
@@ -130,16 +136,64 @@ const I18N = {
         canceling: 'Cancel signal sent; waiting for the current file to finish',
         starting_engine: 'Requesting backend engine...',
         pipeline_started: 'Backend task started',
-        pipeline_done: 'Extraction completed',
+        pipeline_done: 'Filtering completed',
         pipeline_cancelled: 'Task cancelled',
         pipeline_failed: 'Task failed',
         no_gpu: 'No compatible NVIDIA GPU was detected. Whisper may run on CPU.'
     }
 };
 
-const LANG_MAP = {
-    zh: { auto: '自动检测', ja: '日语', zh: '中文', en: '英语', ko: '韩语', de: '德语', fr: '法语', es: '西班牙语', ru: '俄语', it: '意大利语', pt: '葡萄牙语' },
-    en: { auto: 'Auto', ja: 'Japanese', zh: 'Chinese', en: 'English', ko: 'Korean', de: 'German', fr: 'French', es: 'Spanish', ru: 'Russian', it: 'Italian', pt: 'Portuguese' }
+const LANGUAGE_LABELS = {
+    zh: {
+        auto: '自动检测',
+        ja: '日语',
+        zh: '中文',
+        en: '英语',
+        ko: '韩语',
+        de: '德语',
+        fr: '法语',
+        es: '西班牙语',
+        ru: '俄语',
+        it: '意大利语',
+        pt: '葡萄牙语'
+    },
+    en: {
+        auto: 'Auto',
+        ja: 'Japanese',
+        zh: 'Chinese',
+        en: 'English',
+        ko: 'Korean',
+        de: 'German',
+        fr: 'French',
+        es: 'Spanish',
+        ru: 'Russian',
+        it: 'Italian',
+        pt: 'Portuguese'
+    }
+};
+
+const DEFAULT_LANGUAGES = [
+    { code: 'auto', name: 'Auto' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'zh', name: 'Chinese' },
+    { code: 'en', name: 'English' },
+    { code: 'ko', name: 'Korean' },
+    { code: 'de', name: 'German' },
+    { code: 'fr', name: 'French' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'ru', name: 'Russian' },
+    { code: 'it', name: 'Italian' },
+    { code: 'pt', name: 'Portuguese' }
+];
+
+const RUN_STATUS = {
+    IDLE: 'idle',
+    STARTING: 'starting',
+    RUNNING: 'running',
+    CANCELING: 'canceling',
+    SUCCESS: 'success',
+    FAILED: 'failed',
+    CANCELLED: 'cancelled'
 };
 
 createApp({
@@ -147,12 +201,13 @@ createApp({
         const currentLang = ref(localStorage.getItem('vocalsieve.lang') || 'zh');
         const isDarkTheme = ref(localStorage.getItem('vocalsieve.theme') !== 'light');
         const bridgeReady = ref(false);
+        const bridgeChecked = ref(false);
 
         const t = (key) => I18N[currentLang.value]?.[key] || I18N.zh[key] || key;
 
         const envLoaded = ref(false);
         const env = reactive({});
-        const supportedLanguages = ref([{ code: 'auto', name: '自动检测' }]);
+        const supportedLanguages = ref(DEFAULT_LANGUAGES);
 
         const config = reactive({
             source_dir: '',
@@ -165,93 +220,178 @@ createApp({
             min_duration: 0.4
         });
 
-        const isAdvancedOpen = ref(false);
-        const isLangDropdownOpen = ref(false);
-        const isDisplayLangDropdownOpen = ref(false);
-        const isRunning = ref(false);
-        const runFinished = ref(false);
-        const runStopped = ref(false);
-        const currentStage = ref('');
-        const currentCount = ref(0);
-        const totalCount = ref(0);
-        const currentItemName = ref('');
+        const ui = reactive({
+            dropdown: null,
+            advancedOpen: false,
+            settingsOpen: false,
+            alertOpen: false,
+            activeTab: 'sys'
+        });
+
+        const run = reactive({
+            status: RUN_STATUS.IDLE,
+            stage: '',
+            current: 0,
+            total: 0,
+            itemName: '',
+            result: null
+        });
 
         const logs = ref([]);
         const consoleBody = ref(null);
-        const isSettingsOpen = ref(false);
-        const activeTab = ref('sys');
-        const isAlertOpen = ref(false);
         const alertIssues = ref([]);
 
-        const canStart = computed(() => Boolean(config.source_dir && config.output_dir));
-        const progressPercent = computed(() => {
-            if (runFinished.value) return 100;
-            if (totalCount.value === 0) return 0;
-            return Math.min(100, Math.max(0, (currentCount.value / totalCount.value) * 100));
+        const hasBridge = () => Boolean(window.pywebview && window.pywebview.api);
+
+        const markBridgeReady = () => {
+            bridgeReady.value = hasBridge();
+            bridgeChecked.value = true;
+            return bridgeReady.value;
+        };
+
+        const waitForBridge = (timeout = 2500) => new Promise((resolve) => {
+            if (markBridgeReady()) {
+                resolve(true);
+                return;
+            }
+
+            let settled = false;
+            const finish = (ok) => {
+                if (settled) return;
+                settled = true;
+                window.removeEventListener('pywebviewready', onReady);
+                clearTimeout(timer);
+                bridgeReady.value = ok;
+                bridgeChecked.value = true;
+                resolve(ok);
+            };
+            const onReady = () => finish(markBridgeReady());
+            const timer = window.setTimeout(() => finish(markBridgeReady()), timeout);
+            window.addEventListener('pywebviewready', onReady, { once: true });
         });
-        const selectedLangName = computed(() => getLangName(config.target_language));
+
+        const callApi = async (method, ...args) => {
+            const ready = hasBridge() || await waitForBridge();
+            if (!ready || !window.pywebview.api || typeof window.pywebview.api[method] !== 'function') {
+                throw new Error(t('bridge_missing'));
+            }
+            return window.pywebview.api[method](...args);
+        };
+
+        const canStart = computed(() => Boolean(config.source_dir && config.output_dir));
+        const isRunning = computed(() => [
+            RUN_STATUS.STARTING,
+            RUN_STATUS.RUNNING,
+            RUN_STATUS.CANCELING
+        ].includes(run.status));
+        const runFinished = computed(() => run.status === RUN_STATUS.SUCCESS);
+        const runStopped = computed(() => [RUN_STATUS.FAILED, RUN_STATUS.CANCELLED].includes(run.status));
+        const progressPercent = computed(() => {
+            if (run.status === RUN_STATUS.SUCCESS) return 100;
+            if (run.status === RUN_STATUS.STARTING) return 1;
+            if (run.total <= 0) return 0;
+            return Math.min(99, Math.max(0, (run.current / run.total) * 100));
+        });
+        const roundedProgress = computed(() => Math.round(progressPercent.value));
+        const currentStage = computed(() => run.stage);
+        const currentCount = computed(() => run.current);
+        const totalCount = computed(() => run.total);
+        const currentItemName = computed(() => run.itemName);
+        const isAdvancedOpen = computed({
+            get: () => ui.advancedOpen,
+            set: (value) => { ui.advancedOpen = Boolean(value); }
+        });
+        const isSettingsOpen = computed({
+            get: () => ui.settingsOpen,
+            set: (value) => { ui.settingsOpen = Boolean(value); }
+        });
+        const isAlertOpen = computed({
+            get: () => ui.alertOpen,
+            set: (value) => { ui.alertOpen = Boolean(value); }
+        });
+        const activeTab = computed({
+            get: () => ui.activeTab,
+            set: (value) => { ui.activeTab = value; }
+        });
+        const isLangDropdownOpen = computed({
+            get: () => ui.dropdown === 'audio',
+            set: (value) => { ui.dropdown = value ? 'audio' : null; }
+        });
+        const isDisplayLangDropdownOpen = computed({
+            get: () => ui.dropdown === 'display',
+            set: (value) => { ui.dropdown = value ? 'display' : null; }
+        });
+
         const displayLanguageOptions = computed(() => [
             { code: 'zh', label: t('lang_zh') },
             { code: 'en', label: t('lang_en') }
         ]);
-        const displayLangName = computed(() => {
-            const selected = displayLanguageOptions.value.find((item) => item.code === currentLang.value);
-            return selected ? selected.label : t('lang_zh');
-        });
-        const roundedProgress = computed(() => Math.round(progressPercent.value));
+        const displayLangName = computed(() => (
+            displayLanguageOptions.value.find((item) => item.code === currentLang.value)?.label || t('lang_zh')
+        ));
+        const selectedLangName = computed(() => getLangName(config.target_language));
         const runStateLabel = computed(() => {
-            if (isRunning.value) return t('state_running');
-            if (runFinished.value) return t('state_done');
-            if (runStopped.value) return t('state_stopped');
-            return t('state_idle');
+            const stateMap = {
+                [RUN_STATUS.IDLE]: 'state_idle',
+                [RUN_STATUS.STARTING]: 'state_starting',
+                [RUN_STATUS.RUNNING]: 'state_running',
+                [RUN_STATUS.CANCELING]: 'state_canceling',
+                [RUN_STATUS.SUCCESS]: 'state_done',
+                [RUN_STATUS.FAILED]: 'state_failed',
+                [RUN_STATUS.CANCELLED]: 'state_stopped'
+            };
+            return t(stateMap[run.status] || 'state_idle');
         });
         const runButtonState = computed(() => {
-            if (isRunning.value) return 'running';
-            if (runFinished.value) return 'done';
-            if (runStopped.value) return 'stopped';
+            if (run.status === RUN_STATUS.SUCCESS) return 'done';
+            if (run.status === RUN_STATUS.FAILED || run.status === RUN_STATUS.CANCELLED) return 'stopped';
+            if (run.status === RUN_STATUS.STARTING || run.status === RUN_STATUS.RUNNING || run.status === RUN_STATUS.CANCELING) return 'running';
             return 'idle';
         });
         const runButtonLabel = computed(() => {
-            if (isRunning.value) return t('btn_running');
-            if (runFinished.value || runStopped.value) return t('btn_restart');
+            if (run.status === RUN_STATUS.STARTING) return t('btn_starting');
+            if (run.status === RUN_STATUS.CANCELING) return t('btn_canceling');
+            if (run.status === RUN_STATUS.RUNNING) return t('btn_running');
+            if (run.status === RUN_STATUS.SUCCESS || run.status === RUN_STATUS.FAILED || run.status === RUN_STATUS.CANCELLED) return t('btn_restart');
             return t('btn_start');
         });
-        const getLangName = (code) => {
-            const map = currentLang.value === 'en' ? LANG_MAP.en : LANG_MAP.zh;
-            return map[code] || code;
-        };
 
-        const formatStage = (stageCode) => {
-            const zh = {
-                environment_check: '环境预检',
-                physics_filter: '声学粗筛',
-                whisper_filter: '语义精筛',
-                completed: '已完成',
-                interrupted: '已中断'
-            };
-            const en = {
-                environment_check: 'Diagnostics',
-                physics_filter: 'Acoustic Filter',
-                whisper_filter: 'Semantic Filter',
-                completed: 'Completed',
-                interrupted: 'Interrupted'
-            };
-            const map = currentLang.value === 'en' ? en : zh;
-            return map[stageCode] || stageCode || t('state_idle');
-        };
+        function getLangName(code) {
+            return LANGUAGE_LABELS[currentLang.value]?.[code] || LANGUAGE_LABELS.zh[code] || code;
+        }
 
-        const applyTheme = () => {
+        function formatStage(stageCode) {
+            const labels = {
+                zh: {
+                    environment_check: '环境预检',
+                    physics_filter: '声学粗筛',
+                    whisper_filter: '语义精筛',
+                    completed: '已完成',
+                    interrupted: '已中断'
+                },
+                en: {
+                    environment_check: 'Diagnostics',
+                    physics_filter: 'Acoustic Filter',
+                    whisper_filter: 'Semantic Filter',
+                    completed: 'Completed',
+                    interrupted: 'Interrupted'
+                }
+            };
+            return labels[currentLang.value]?.[stageCode] || stageCode || t('state_idle');
+        }
+
+        function applyTheme() {
             document.body.classList.toggle('light-theme', !isDarkTheme.value);
             localStorage.setItem('vocalsieve.theme', isDarkTheme.value ? 'dark' : 'light');
-        };
+        }
 
-        const toggleTheme = (event) => {
+        function toggleTheme(event) {
             const update = () => {
                 isDarkTheme.value = !isDarkTheme.value;
                 applyTheme();
             };
 
-            if (!document.startViewTransition || !event) {
+            if (!document.startViewTransition || !event?.currentTarget) {
                 update();
                 return;
             }
@@ -268,258 +408,292 @@ createApp({
             transition.ready.then(() => {
                 document.documentElement.animate(
                     { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`] },
-                    { duration: 920, easing: 'cubic-bezier(.2,.8,.18,1)', pseudoElement: '::view-transition-new(root)' }
+                    { duration: 1100, easing: 'cubic-bezier(.2,.8,.18,1)', pseudoElement: '::view-transition-new(root)' }
                 );
-            });
-        };
+            }).catch(() => {});
+        }
 
-        const addLog = (level, message) => {
+        function addLog(level, message) {
             const time = new Date().toTimeString().split(' ')[0];
-            logs.value.push({ time, level, message });
-            if (logs.value.length > 600) logs.value.shift();
-            if (isSettingsOpen.value && activeTab.value === 'log') {
-                nextTick(() => {
-                    if (consoleBody.value) consoleBody.value.scrollTop = consoleBody.value.scrollHeight;
-                });
+            logs.value.push({ time, level, message: String(message ?? '') });
+            if (logs.value.length > 700) logs.value.shift();
+            if (ui.settingsOpen && ui.activeTab === 'log') {
+                nextTick(scrollLogsToBottom);
             }
-        };
+        }
 
-        const selectLang = (code) => {
+        function scrollLogsToBottom() {
+            if (consoleBody.value) {
+                consoleBody.value.scrollTop = consoleBody.value.scrollHeight;
+            }
+        }
+
+        function toggleDropdown(name, event) {
+            if (event) event.stopPropagation();
+            if (isRunning.value && name === 'audio') return;
+            ui.dropdown = ui.dropdown === name ? null : name;
+        }
+
+        function closeDropdowns(event) {
+            if (!event || !event.target.closest('.custom-select')) {
+                ui.dropdown = null;
+            }
+        }
+
+        function selectLang(code) {
             config.target_language = code;
-            isLangDropdownOpen.value = false;
-        };
+            ui.dropdown = null;
+        }
 
-        const selectDisplayLanguage = (code) => {
+        function selectDisplayLanguage(code) {
             currentLang.value = code;
-            isDisplayLangDropdownOpen.value = false;
-        };
+            document.documentElement.lang = code === 'zh' ? 'zh-CN' : 'en';
+            ui.dropdown = null;
+        }
 
-        const selectDir = async (type) => {
-            if (!window.pywebview?.api) {
-                addLog('WARNING', t('bridge_missing'));
+        async function selectDir(type) {
+            if (isRunning.value) return;
+            try {
+                const path = await callApi('select_directory');
+                if (!path) return;
+                if (type === 'source') config.source_dir = path;
+                if (type === 'output') config.output_dir = path;
+            } catch (err) {
+                addLog('ERROR', `${t('dir_failed')}: ${err.message || err}`);
+            }
+        }
+
+        function prepareRun() {
+            run.status = RUN_STATUS.STARTING;
+            run.stage = 'environment_check';
+            run.current = 0;
+            run.total = 0;
+            run.itemName = '';
+            run.result = null;
+            logs.value = [];
+            ui.dropdown = null;
+        }
+
+        function finishRun(result) {
+            run.result = result || {};
+            if (result?.success) {
+                run.status = RUN_STATUS.SUCCESS;
+                run.stage = 'completed';
+                run.current = run.total || run.current;
+                addLog('INFO', `${t('pipeline_done')}: ${result.final_output_dir || '-'}`);
                 return;
             }
-            try {
-                const path = await window.pywebview.api.select_directory();
-                if (path) {
-                    if (type === 'source') config.source_dir = path;
-                    if (type === 'output') config.output_dir = path;
-                }
-            } catch (err) {
-                addLog('ERROR', `${t('dir_failed')}: ${err}`);
+            if (result?.cancelled) {
+                run.status = RUN_STATUS.CANCELLED;
+                run.stage = 'interrupted';
+                addLog('WARNING', t('pipeline_cancelled'));
+                return;
             }
-        };
+            run.status = RUN_STATUS.FAILED;
+            run.stage = 'interrupted';
+            addLog('ERROR', `${t('pipeline_failed')}: ${result?.error_message || '-'}`);
+        }
 
-        const resetRunState = () => {
-            isRunning.value = true;
-            runFinished.value = false;
-            runStopped.value = false;
-            currentStage.value = 'environment_check';
-            currentCount.value = 0;
-            totalCount.value = 0;
-            currentItemName.value = '';
-            logs.value = [];
-        };
-
-        const handleRunButton = () => {
-            if (isRunning.value) {
+        function handleRunButton() {
+            if (run.status === RUN_STATUS.STARTING || run.status === RUN_STATUS.RUNNING) {
                 cancelPipeline();
                 return;
             }
+            if (run.status === RUN_STATUS.CANCELING) return;
             startPipeline();
-        };
+        }
 
-        const startPipeline = async () => {
-            if (!canStart.value) return;
-            if (!window.pywebview?.api) {
-                addLog('ERROR', t('bridge_missing'));
-                return;
-            }
-
-            resetRunState();
+        async function startPipeline() {
+            if (!canStart.value || isRunning.value) return;
+            prepareRun();
             addLog('INFO', t('starting_engine'));
 
             try {
                 const payload = JSON.parse(JSON.stringify(config));
-                const res = await window.pywebview.api.start_pipeline(payload);
-                if (res === 'started') {
+                const response = await callApi('start_pipeline', payload);
+                if (response === 'started') {
+                    run.status = RUN_STATUS.RUNNING;
                     addLog('INFO', t('pipeline_started'));
                     return;
                 }
-                addLog('ERROR', res);
-                isRunning.value = false;
+                run.status = RUN_STATUS.FAILED;
+                addLog('ERROR', response || t('pipeline_failed'));
             } catch (err) {
-                addLog('ERROR', `${t('pipeline_failed')}: ${err}`);
-                isRunning.value = false;
+                run.status = RUN_STATUS.FAILED;
+                addLog('ERROR', `${t('pipeline_failed')}: ${err.message || err}`);
             }
-        };
+        }
 
-        const cancelPipeline = async () => {
+        async function cancelPipeline() {
+            if (!isRunning.value || run.status === RUN_STATUS.CANCELING) return;
+            run.status = RUN_STATUS.CANCELING;
             try {
-                await window.pywebview?.api?.cancel_pipeline();
+                await callApi('cancel_pipeline');
                 addLog('WARNING', t('canceling'));
             } catch (err) {
-                addLog('ERROR', `${t('pipeline_failed')}: ${err}`);
+                run.status = RUN_STATUS.FAILED;
+                addLog('ERROR', `${t('pipeline_failed')}: ${err.message || err}`);
             }
-        };
+        }
 
-        const copyLogs = async () => {
+        async function copyLogs() {
             if (logs.value.length === 0) return;
             const logText = logs.value.map((log) => `[${log.time}] [${log.level}] ${log.message}`).join('\n');
             try {
-                if (window.pywebview?.api) {
-                    const ok = await window.pywebview.api.copy_to_clipboard(logText);
+                if (hasBridge()) {
+                    const ok = await callApi('copy_to_clipboard', logText);
                     if (!ok) throw new Error(t('copy_failed'));
                 } else if (navigator.clipboard) {
                     await navigator.clipboard.writeText(logText);
                 }
                 addLog('INFO', t('copied'));
             } catch (err) {
-                addLog('ERROR', `${t('copy_failed')}: ${err}`);
+                addLog('ERROR', `${t('copy_failed')}: ${err.message || err}`);
             }
-        };
+        }
 
-        const exportLogs = async () => {
-            if (logs.value.length === 0 || !window.pywebview?.api) return;
+        async function exportLogs() {
+            if (logs.value.length === 0) return;
             const logText = logs.value.map((log) => `[${log.time}] [${log.level}] ${log.message}`).join('\n');
             try {
-                const path = await window.pywebview.api.export_logs(logText);
-                if (path && !path.startsWith('ERROR')) addLog('INFO', `${t('exported')}: ${path}`);
-                if (path?.startsWith('ERROR')) addLog('ERROR', path);
+                const path = await callApi('export_logs', logText);
+                if (path && !String(path).startsWith('ERROR')) addLog('INFO', `${t('exported')}: ${path}`);
+                if (path && String(path).startsWith('ERROR')) addLog('ERROR', path);
             } catch (err) {
-                addLog('ERROR', `${t('export_failed')}: ${err}`);
+                addLog('ERROR', `${t('export_failed')}: ${err.message || err}`);
             }
-        };
+        }
 
-        const loadEnvironment = async () => {
-            if (!window.pywebview?.api) return;
-            bridgeReady.value = true;
+        async function loadEnvironment() {
+            const ready = await waitForBridge(1800);
+            if (!ready) {
+                envLoaded.value = true;
+                Object.assign(env, {
+                    python_ok: false,
+                    torch_available: false,
+                    cuda_available: false,
+                    gpu_name: 'Preview',
+                    whisper_available: false,
+                    ffmpeg_found: false,
+                    issues: [t('bridge_missing')]
+                });
+                return;
+            }
+
             try {
-                const data = await window.pywebview.api.get_environment();
-                Object.assign(env, data);
-                if (data.recommended_preset) config.preset = data.recommended_preset;
+                const data = await callApi('get_environment');
+                Object.assign(env, data || {});
+                if (data?.recommended_preset) config.preset = data.recommended_preset;
                 envLoaded.value = true;
 
-                const languages = await window.pywebview.api.get_supported_languages();
+                const languages = await callApi('get_supported_languages');
                 if (Array.isArray(languages) && languages.length > 0) {
                     supportedLanguages.value = languages;
                 }
 
                 const issues = [];
-                if (!data.cuda_available) issues.push(t('no_gpu'));
-                if (Array.isArray(data.issues)) issues.push(...data.issues);
+                if (!data?.cuda_available) issues.push(t('no_gpu'));
+                if (Array.isArray(data?.issues)) issues.push(...data.issues);
                 if (issues.length > 0) {
                     alertIssues.value = issues;
-                    isAlertOpen.value = true;
+                    ui.alertOpen = true;
                 }
             } catch (err) {
                 envLoaded.value = true;
-                addLog('ERROR', `${t('env_scanning')}: ${err}`);
+                addLog('ERROR', `${t('env_scanning')}: ${err.message || err}`);
             }
-        };
+        }
 
-        const openSettings = (tab = 'sys') => {
-            activeTab.value = tab;
-            isSettingsOpen.value = true;
-            if (tab === 'log') {
-                nextTick(() => {
-                    if (consoleBody.value) consoleBody.value.scrollTop = consoleBody.value.scrollHeight;
-                });
-            }
-        };
-        const closeSettings = () => { isSettingsOpen.value = false; };
-        const closeAlert = () => { isAlertOpen.value = false; };
+        function openSettings(tab = 'sys') {
+            ui.activeTab = tab;
+            ui.settingsOpen = true;
+            ui.dropdown = null;
+            if (tab === 'log') nextTick(scrollLogsToBottom);
+        }
 
-        const closeDropdowns = (event) => {
-            if (!event.target.closest('.custom-select')) {
-                isLangDropdownOpen.value = false;
-                isDisplayLangDropdownOpen.value = false;
-            }
-        };
+        function closeSettings() {
+            ui.settingsOpen = false;
+            ui.dropdown = null;
+        }
 
-        const handleEscape = (event) => {
+        function closeAlert() {
+            ui.alertOpen = false;
+        }
+
+        function handleEscape(event) {
             if (event.key !== 'Escape') return;
-            isLangDropdownOpen.value = false;
-            isDisplayLangDropdownOpen.value = false;
-            isSettingsOpen.value = false;
-        };
+            if (ui.dropdown) {
+                ui.dropdown = null;
+                return;
+            }
+            if (ui.alertOpen) {
+                ui.alertOpen = false;
+                return;
+            }
+            if (ui.settingsOpen) {
+                ui.settingsOpen = false;
+            }
+        }
 
         window.onStageStart = (stage, total) => {
-            currentStage.value = stage;
-            totalCount.value = total;
-            currentCount.value = 0;
-            currentItemName.value = '';
+            run.status = RUN_STATUS.RUNNING;
+            run.stage = stage || run.stage;
+            run.total = Number(total) || 0;
+            run.current = 0;
+            run.itemName = '';
         };
 
         window.onItemDone = (stage, current, total, itemName, accepted, detail) => {
-            currentStage.value = stage;
-            currentCount.value = current;
-            totalCount.value = total;
-            currentItemName.value = `${accepted ? 'PASS' : 'DROP'} · ${itemName}${detail ? ` · ${detail}` : ''}`;
+            run.status = RUN_STATUS.RUNNING;
+            run.stage = stage || run.stage;
+            run.current = Number(current) || 0;
+            run.total = Number(total) || run.total;
+            const prefix = accepted ? 'PASS' : 'DROP';
+            run.itemName = `${prefix} · ${itemName || ''}${detail ? ` · ${detail}` : ''}`;
         };
 
         window.onStageEnd = (stage) => {
-            currentStage.value = stage;
+            run.stage = stage || run.stage;
         };
 
         window.onLog = (level, message) => {
-            addLog(level, message);
+            addLog(level || 'INFO', message || '');
         };
 
         window.onPipelineComplete = (result) => {
-            isRunning.value = false;
-            runFinished.value = Boolean(result.success);
-            runStopped.value = !result.success;
-            currentStage.value = result.success ? 'completed' : 'interrupted';
-            if (result.success) {
-                currentCount.value = totalCount.value;
-                addLog('INFO', `${t('pipeline_done')}: ${result.final_output_dir || '-'}`);
-            } else if (result.cancelled) {
-                addLog('WARNING', t('pipeline_cancelled'));
-            } else {
-                addLog('ERROR', `${t('pipeline_failed')}: ${result.error_message || '-'}`);
-            }
+            finishRun(result || {});
         };
 
         watch(currentLang, (value) => {
             localStorage.setItem('vocalsieve.lang', value);
-        });
+            document.documentElement.lang = value === 'zh' ? 'zh-CN' : 'en';
+        }, { immediate: true });
 
         onMounted(() => {
             applyTheme();
             document.addEventListener('click', closeDropdowns);
             document.addEventListener('keydown', handleEscape);
-            window.addEventListener('pywebviewready', loadEnvironment);
+            window.addEventListener('pywebviewready', loadEnvironment, { once: true });
+            loadEnvironment();
+        });
 
-            if (window.pywebview?.api) {
-                loadEnvironment();
-            } else {
-                window.setTimeout(() => {
-                    if (!bridgeReady.value && !window.pywebview?.api) {
-                        envLoaded.value = true;
-                        Object.assign(env, {
-                            python_ok: false,
-                            torch_available: false,
-                            cuda_available: false,
-                            gpu_name: 'Preview',
-                            whisper_available: false,
-                            ffmpeg_found: false,
-                            issues: [t('bridge_missing')]
-                        });
-                    }
-                }, 900);
-            }
+        onBeforeUnmount(() => {
+            document.removeEventListener('click', closeDropdowns);
+            document.removeEventListener('keydown', handleEscape);
         });
 
         return {
             t,
             currentLang,
+            bridgeReady,
+            bridgeChecked,
             envLoaded,
             env,
             config,
             supportedLanguages,
             isRunning,
             runFinished,
+            runStopped,
             canStart,
             currentStage,
             currentCount,
@@ -546,6 +720,7 @@ createApp({
             getLangName,
             formatStage,
             toggleTheme,
+            toggleDropdown,
             selectDir,
             selectLang,
             selectDisplayLanguage,

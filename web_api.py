@@ -64,6 +64,17 @@ class VocalSieveApi:
 
     def select_directory(self) -> str:
         """打开 Windows 原生目录选择对话框。"""
+        if self.window:
+            try:
+                result = self.window.create_file_dialog(webview.FOLDER_DIALOG)
+                if isinstance(result, (list, tuple)) and result:
+                    return str(result[0])
+                if isinstance(result, str):
+                    return result
+                return ""
+            except Exception:
+                pass
+
         import ctypes
         from ctypes import wintypes
         
