@@ -1,0 +1,30 @@
+name: GPU release gate
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  windows-native:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    runs-on: [self-hosted, windows, x64, gpu]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ".[api,dev]"
+      - run: vocalsieve doctor --deep --device cuda --model tiny
+
+  linux-container:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/')
+    runs-on: [self-hosted, linux, x64, gpu]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target gpu -t vocalsieve:gpu-test .
+      - run: docker run --rm --gpus all vocalsieve:gpu-test doctor --deep --device cuda --model tiny
+

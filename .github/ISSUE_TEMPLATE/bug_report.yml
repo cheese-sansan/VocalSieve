@@ -1,0 +1,15 @@
+name: Bug report
+description: Report a reproducible VocalSieve problem
+body:
+  - type: textarea
+    attributes: {label: What happened?}
+    validations: {required: true}
+  - type: textarea
+    attributes: {label: Reproduction steps}
+    validations: {required: true}
+  - type: textarea
+    attributes: {label: Doctor output, description: Remove private paths before posting.}
+  - type: input
+    attributes: {label: VocalSieve version}
+    validations: {required: true}
+

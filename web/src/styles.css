@@ -1,0 +1,64 @@
+:root {
+  font-family: Inter, "Segoe UI", sans-serif;
+  color: #f4f4f4;
+  background: #0c0c0c;
+  font-synthesis: none;
+  letter-spacing: 0;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: #0c0c0c; }
+button { font: inherit; }
+.app-shell { min-height: 100vh; display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+.sidebar { position: sticky; top: 0; height: 100vh; padding: 20px 14px; background: #151515; border-right: 1px solid #303030; display: flex; flex-direction: column; }
+.brand { height: 44px; display: flex; align-items: center; gap: 10px; padding: 0 8px; font-weight: 700; }
+nav { display: grid; gap: 4px; margin-top: 20px; }
+.nav-item { height: 38px; border: 0; background: transparent; color: #aaa; display: flex; align-items: center; gap: 10px; padding: 0 10px; text-align: left; }
+.nav-item.active, .nav-item:hover { background: #292929; color: #fff; }
+.connection { margin-top: auto; padding: 10px; color: #aaa; font-size: 12px; display: flex; gap: 8px; align-items: center; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #c50f1f; }
+.connection.ok .status-dot { background: #16a36b; }
+main { min-width: 0; padding: 22px 28px 48px; }
+.topbar { height: 58px; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #303030; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 20px; }
+h2 { font-size: 15px; }
+.topbar p, .section-heading span { color: #888; font-size: 12px; margin-top: 4px; }
+.icon-button { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid #444; background: #1c1c1c; color: #fff; }
+.icon-button:hover { background: #333; }
+.error-band { min-height: 42px; margin-top: 16px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; background: #341515; border-left: 3px solid #c50f1f; }
+.metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin: 22px 0 28px; border-block: 1px solid #303030; }
+.metrics div { padding: 16px; border-right: 1px solid #303030; }
+.metrics div:last-child { border-right: 0; }
+.metrics span { display: block; color: #888; font-size: 12px; }
+.metrics strong { display: block; margin-top: 5px; font-size: 20px; }
+section { margin-top: 28px; }
+.section-heading { height: 34px; display: flex; justify-content: space-between; align-items: flex-start; }
+.check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #303030; }
+.check-row { min-height: 46px; display: grid; grid-template-columns: 22px 140px 1fr; align-items: center; gap: 8px; border-bottom: 1px solid #272727; color: #aaa; font-size: 13px; }
+.check-row strong { color: #eee; }
+.success { color: #16a36b; }
+.danger { color: #e03e32; }
+.table-wrap { overflow-x: auto; border: 1px solid #303030; }
+table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
+th { height: 34px; color: #999; background: #191919; text-align: left; font-weight: 500; }
+th, td { padding: 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+td { height: 38px; border-top: 1px solid #292929; }
+tbody tr:hover, tbody tr.selected { background: #292929; cursor: pointer; }
+.mono { font-family: "Cascadia Mono", Consolas, monospace; }
+.event-log { min-height: 126px; max-height: 240px; overflow-y: auto; background: #050505; border: 1px solid #303030; padding: 8px 12px; font: 12px/1.8 "Cascadia Mono", Consolas, monospace; }
+.event-log > div { display: grid; grid-template-columns: 74px 150px 1fr; gap: 8px; }
+.event-log time { color: #777; }
+.event-log b { color: #ddd; font-weight: 500; }
+.event-log p { color: #777; }
+@media (max-width: 800px) {
+  .app-shell { grid-template-columns: 58px minmax(0, 1fr); }
+  .sidebar { padding-inline: 8px; }
+  .brand { font-size: 0; justify-content: center; }
+  .nav-item { font-size: 0; justify-content: center; }
+  .connection { display: none; }
+  main { padding: 16px; }
+  .metrics { grid-template-columns: 1fr; }
+  .metrics div { border-right: 0; border-bottom: 1px solid #303030; }
+  .check-grid { grid-template-columns: 1fr; }
+}
+

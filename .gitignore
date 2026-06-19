@@ -1,29 +1,36 @@
-# Python caches
 __pycache__/
 *.py[cod]
-*$py.class
+*.egg-info/
+.coverage
+coverage.xml
+htmlcov/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyright/
+.tmp/
 
-# Virtual environments
 .venv/
 venv/
-env/
-ENV/
+.env
+.env.*
+!.env.example
 
-# Local runtime state
-.manifest_*.jsonl
-.pipeline_manifest.jsonl
+dist/
+build/
+node_modules/
+web/dist/
+*.tsbuildinfo
+
+*.db
+*.db-shm
+*.db-wal
 *.log
 *.tmp
-
-# Generated output folders
-physics_passed/
 final_selected/
-Approved_Elite/
-Rejected_Trash/
-Final_ASR_Selected*/
-say-music/
+vocalsieve-report.csv
+vocalsieve-report.json
 
-# OS and editor noise
 .DS_Store
 Thumbs.db
 .idea/
