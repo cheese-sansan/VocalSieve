@@ -5,13 +5,12 @@ from __future__ import annotations
 import ctypes
 import importlib.util
 import os
-import shutil
 import sqlite3
 import sys
 from dataclasses import dataclass
 
 from .domain import PipelineConfig
-from .runtime import configure_windows_cuda
+from .runtime import configure_runtime, find_ffmpeg
 from .transcription import FasterWhisperTranscriber
 
 
@@ -24,13 +23,14 @@ class Check:
 
 
 def _ffmpeg_path() -> str | None:
-    return shutil.which("ffmpeg")
+    ffmpeg = find_ffmpeg()
+    return str(ffmpeg) if ffmpeg else None
 
 
 def _windows_cuda_libraries() -> list[Check]:
     if os.name != "nt":
         return []
-    configure_windows_cuda()
+    configure_runtime()
     checks = []
     for label, filename in (("cuBLAS", "cublas64_12.dll"), ("cuDNN", "cudnn64_9.dll")):
         try:
@@ -44,7 +44,7 @@ def _windows_cuda_libraries() -> list[Check]:
 def run_diagnostics(
     *, deep: bool = False, device: str = "auto", model_size: str = "tiny"
 ) -> list[Check]:
-    configure_windows_cuda()
+    configure_runtime()
     faster_whisper = importlib.util.find_spec("faster_whisper") is not None
     librosa = importlib.util.find_spec("librosa") is not None
     ffmpeg = _ffmpeg_path()

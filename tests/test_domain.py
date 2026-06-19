@@ -46,6 +46,6 @@ def test_safe_destination_rejects_traversal(tmp_path: Path):
 
 
 def test_config_accepts_quoted_windows_paths():
-    config = PipelineConfig('  "E:\\say-music\\data_music"  ', "'E:\\say-music' ")
-    assert config.source_dir == "E:\\say-music\\data_music"
-    assert config.output_dir == "E:\\say-music"
+    config = PipelineConfig('  "C:\\Audio Corpus\\input"  ', "'C:\\Audio Corpus\\output' ")
+    assert config.source_dir == "C:\\Audio Corpus\\input"
+    assert config.output_dir == "C:\\Audio Corpus\\output"

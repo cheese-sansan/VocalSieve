@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
-    "generate:api": "openapi-typescript ../openapi.json -o src/api/schema.d.ts"
+    "generate:api": "openapi-typescript ../openapi.json -o src/api/schema.d.ts",
+    "licenses": "node ../scripts/generate_node_licenses.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

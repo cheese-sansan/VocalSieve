@@ -9,6 +9,12 @@ Jobs, metrics, transcripts, rejection reasons, events, and resume state are
 stored in SQLite. The first TUI launch asks for English or Simplified Chinese;
 the choice is remembered and can be changed later in Settings.
 
+![VocalSieve terminal workbench](docs/images/tui.svg)
+
+The optional React/Vite client consumes only the versioned local API contract:
+
+![VocalSieve web API skeleton](docs/images/web-dashboard.png)
+
 ## Supported platforms
 
 - Windows 10/11: native CLI and Textual TUI; CPU is ready, CUDA requires the
@@ -28,6 +34,16 @@ uv sync --extra tui
 uv run vocalsieve doctor
 uv run vocalsieve
 ```
+
+## Windows portable app
+
+Non-developers can download `VocalSieve-Windows-x64.zip`, extract it, and
+double-click `VocalSieve.exe` or `Start-VocalSieve.cmd`. Python and uv are not
+required. The portable archive contains a separate GPLv3 FFmpeg executable but
+does not contain model weights; the selected model downloads on first use.
+
+From a checked-out repository, `Start-VocalSieve.cmd` launches an existing
+virtual environment or falls back to `uv run vocalsieve`.
 
 For development, API, and all tests:
 
@@ -116,6 +132,7 @@ python -m build
 npm --prefix web ci
 npm --prefix web run build
 pip-audit --skip-editable
+scripts\release_gate.ps1 -BuildPortable -CorpusPath "E:\data\release-corpus"
 ```
 
 Contributions are welcome under the [MIT License](LICENSE). Read

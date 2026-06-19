@@ -9,6 +9,7 @@ htmlcov/
 .mypy_cache/
 .pyright/
 .tmp/
+.playwright-cli/
 
 .venv/
 venv/

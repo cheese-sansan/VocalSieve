@@ -8,4 +8,14 @@
 Do not include model weights, private audio, generated outputs, databases, or
 third-party binaries in commits. By contributing, you agree that your changes
 are licensed under the MIT License.
+## Release validation
 
+Run the local release gate from a clean worktree:
+
+```powershell
+.\scripts\release_gate.ps1 -SkipDocker
+```
+
+Maintainers use `-BuildPortable` and an authorized corpus path for the full
+Windows CUDA gate. Never commit models, audio corpora, signing certificates, or
+FFmpeg binaries.

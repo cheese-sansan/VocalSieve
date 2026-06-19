@@ -9,6 +9,7 @@ import sys
 from .doctor import run_diagnostics
 from .domain import PipelineConfig
 from .events import PipelineEvent
+from .runtime import configure_runtime
 from .service import VocalSieveService
 
 
@@ -55,6 +56,7 @@ def print_event(event: PipelineEvent) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_runtime()
     args = build_parser().parse_args(argv)
     if args.command is None:
         from .tui import run_tui
@@ -68,10 +70,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{state:4} {check.name:16} {check.detail}")
         return 0 if all(check.ok for check in checks if check.required) else 1
     if args.command == "serve":
-        from .api import create_app
-
         try:
             import uvicorn
+
+            from .api import create_app
         except ImportError:
             print("Error: install VocalSieve with the 'api' extra", file=sys.stderr)
             return 1

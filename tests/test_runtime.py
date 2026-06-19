@@ -20,3 +20,26 @@ def test_configure_windows_cuda_discovers_side_by_side_runtime(tmp_path: Path, m
     assert cuda_bin.resolve() in configured
     assert cudnn_bin.resolve() in configured
     assert str(cuda_bin.resolve()) in registered
+
+
+def test_ffmpeg_prefers_portable_path(tmp_path: Path, monkeypatch):
+    executable = tmp_path / "VocalSieve.exe"
+    bundled = tmp_path / "tools" / "ffmpeg" / "ffmpeg.exe"
+    bundled.parent.mkdir(parents=True)
+    bundled.write_bytes(b"ffmpeg")
+    monkeypatch.setattr(runtime.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(runtime.sys, "executable", str(executable))
+    monkeypatch.setenv("PATH", "")
+
+    assert runtime.find_ffmpeg() == bundled
+    assert str(bundled.parent) in runtime.os.environ["PATH"]
+
+
+def test_source_runtime_uses_path_ffmpeg(tmp_path: Path, monkeypatch):
+    binary = tmp_path / "ffmpeg.exe"
+    binary.write_bytes(b"ffmpeg")
+    monkeypatch.setattr(runtime.sys, "frozen", False, raising=False)
+    monkeypatch.setattr(runtime, "user_ffmpeg_path", lambda: None)
+    monkeypatch.setattr(runtime.shutil, "which", lambda _: str(binary))
+
+    assert runtime.find_ffmpeg() == binary.resolve()
