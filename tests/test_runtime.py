@@ -11,7 +11,7 @@ def test_configure_windows_cuda_discovers_side_by_side_runtime(tmp_path: Path, m
     cudnn_bin.mkdir(parents=True)
     (cudnn_bin / "cudnn64_9.dll").write_bytes(b"")
     registered = []
-    monkeypatch.setattr(runtime.os, "name", "nt")
+    monkeypatch.setattr(runtime, "_is_windows", lambda: True)
     monkeypatch.setenv("PROGRAMFILES", str(program_files))
     monkeypatch.setattr(runtime.os, "add_dll_directory", registered.append, raising=False)
 

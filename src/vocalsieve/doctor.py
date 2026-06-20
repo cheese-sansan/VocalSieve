@@ -14,6 +14,10 @@ from .runtime import configure_runtime, find_ffmpeg
 from .transcription import FasterWhisperTranscriber
 
 
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
 @dataclass(frozen=True, slots=True)
 class Check:
     name: str
@@ -28,7 +32,7 @@ def _ffmpeg_path() -> str | None:
 
 
 def _windows_cuda_libraries() -> list[Check]:
-    if os.name != "nt":
+    if not _is_windows():
         return []
     configure_runtime()
     checks = []

@@ -13,6 +13,10 @@ from platformdirs import user_data_path
 _DLL_HANDLES: list[Any] = []
 
 
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
 def portable_root() -> Path | None:
     """Return the portable application root when running a frozen executable."""
     if not getattr(sys, "frozen", False):
@@ -55,7 +59,7 @@ def configure_runtime() -> None:
 
 
 def configure_windows_cuda() -> list[Path]:
-    if os.name != "nt":
+    if not _is_windows():
         return []
 
     candidates: list[Path] = []
