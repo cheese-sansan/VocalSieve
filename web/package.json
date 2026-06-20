@@ -20,7 +20,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "openapi-typescript": "^7.6.1",
     "typescript": "^5.7.2",
-    "vite": "^6.0.7"
+    "vite": "^8.0.16"
   },
   "overrides": {
     "js-yaml": "^4.2.0"
