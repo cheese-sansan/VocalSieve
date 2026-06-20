@@ -37,6 +37,6 @@ def test_deep_diagnostics_reports_failure(monkeypatch):
 def test_windows_cuda_library_success_path(monkeypatch):
     monkeypatch.setattr(doctor, "_is_windows", lambda: True)
     monkeypatch.setattr(doctor, "configure_runtime", lambda: None)
-    monkeypatch.setattr(doctor.ctypes, "WinDLL", lambda name: SimpleNamespace())
+    monkeypatch.setattr(doctor.ctypes, "WinDLL", lambda name: SimpleNamespace(), raising=False)
     checks = doctor._windows_cuda_libraries()
     assert all(check.ok for check in checks)
