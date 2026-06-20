@@ -19,13 +19,17 @@ jobs:
       WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.12"
-      - run: python -m pip install ".[tui,dev]"
+      - name: Prepare runner Python
+        shell: powershell
+        run: |
+          $python = "${{ vars.VOCALSIEVE_PYTHON_PATH }}"
+          if (-not (Test-Path -LiteralPath $python)) { throw "VOCALSIEVE_PYTHON_PATH is invalid" }
+          & $python --version
+          & $python -m pip install ".[tui,dev]"
+          if ($LASTEXITCODE -ne 0) { throw "Python dependency installation failed" }
       - name: Build and sign portable package
         shell: powershell
-        run: .\scripts\build_windows_portable.ps1 -Python "${{ env.pythonLocation }}/python.exe" -FfmpegPath "${{ vars.VOCALSIEVE_FFMPEG_PATH }}" -FfmpegLicensePath "${{ vars.VOCALSIEVE_FFMPEG_LICENSE_PATH }}" -RequireSignature
+        run: .\scripts\build_windows_portable.ps1 -Python "${{ vars.VOCALSIEVE_PYTHON_PATH }}" -FfmpegPath "${{ vars.VOCALSIEVE_FFMPEG_PATH }}" -FfmpegLicensePath "${{ vars.VOCALSIEVE_FFMPEG_LICENSE_PATH }}" -RequireSignature
       - name: CUDA smoke test from frozen app
         run: .\dist\windows\VocalSieve\VocalSieve.exe doctor --deep --device cuda --model tiny
       - name: Fetch corresponding source materials
