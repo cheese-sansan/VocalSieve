@@ -1,0 +1,20 @@
+{
+  "artifact": "ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe",
+  "build_date": "2026-03-15",
+  "build_project": "BtbN/FFmpeg-Builds",
+  "build_project_commit": "ddd38fbb847aa759126f20e9a2179b3ea8699a63",
+  "ffmpeg_commit": "482395f830a18686d23c12f783b7ea927c2f2bdb",
+  "license": "GPL-3.0-or-later",
+  "provenance_basis": "FFmpeg commit from executable version output; BtbN build-project commit selected at the executable's 2026-03-15 extra-version date",
+  "sha256": "1BA2B052F0663119B55C071270374539F52FD1443D1D27DCE5738DE116F173D3",
+  "source_archives": [
+    {
+      "sha256": "4F44D5FCD09A9003D1DD4CC2A002E29D1DE1DF51D1E457D6196DF00BB53DCA1D",
+      "url": "https://github.com/FFmpeg/FFmpeg/archive/482395f830a18686d23c12f783b7ea927c2f2bdb.tar.gz"
+    },
+    {
+      "sha256": "D1949C55793CBA9C0F4D28C67962300DEC84E4C5314E502CBA0D1484B0D07D55",
+      "url": "https://github.com/BtbN/FFmpeg-Builds/archive/ddd38fbb847aa759126f20e9a2179b3ea8699a63.tar.gz"
+    }
+  ]
+}

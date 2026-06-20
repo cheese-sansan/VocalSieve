@@ -1,0 +1,131 @@
+name: Release artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag, for example v0.9.0-rc1
+        required: true
+        type: string
+      gpu_run_id:
+        description: Successful GPU release gate run id
+        required: true
+        type: string
+      windows_run_id:
+        description: Successful signed Windows package run id
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.gate.outputs.tag }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - id: tag
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - id: gate
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          TAG: ${{ inputs.tag }}
+          TAG_SHA: ${{ steps.tag.outputs.sha }}
+          GPU_RUN_ID: ${{ inputs.gpu_run_id }}
+          WINDOWS_RUN_ID: ${{ inputs.windows_run_id }}
+        with:
+          script: |
+            const expected = process.env.TAG_SHA;
+            for (const [label, value] of [["GPU", process.env.GPU_RUN_ID], ["Windows", process.env.WINDOWS_RUN_ID]]) {
+              const run = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: Number(value),
+              });
+              if (run.data.conclusion !== "success" || run.data.head_sha !== expected) {
+                core.setFailed(`${label} run ${value} is not a successful run for ${expected}`);
+              }
+            }
+            core.setOutput("tag", process.env.TAG);
+
+  python-assets:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
+      - run: python -m build
+      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/vocalsieve-source.spdx.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: python-release-assets
+          path: |
+            dist/*
+            openapi.json
+
+  containers:
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [cpu, gpu]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: ${{ matrix.target }}
+          push: true
+          sbom: true
+          provenance: mode=max
+          tags: ghcr.io/${{ github.repository }}:${{ inputs.tag }}-${{ matrix.target }}
+
+  publish:
+    needs: [verify, python-assets, containers]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: python-release-assets
+          path: release
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: signed-windows-package
+          path: release/windows
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ inputs.windows_run_id }}
+      - name: Final checksums
+        run: find release -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > release/SHA256SUMS
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          prerelease: true
+          generate_release_notes: true
+          files: |
+            release/**/*

@@ -1,0 +1,61 @@
+services:
+  api-cpu:
+    profiles: ["cpu"]
+    build:
+      context: .
+      target: cpu
+      args:
+        CPU_BASE: ${VOCALSIEVE_CPU_BASE:-python:3.12-slim-bookworm}
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ./data/input:/data/input:ro
+      - ./data/output:/data/output
+      - vocalsieve-state:/state
+      - model-cache:/models
+    environment:
+      HF_HOME: /models
+      VOCALSIEVE_SESSION_TOKEN: ${VOCALSIEVE_SESSION_TOKEN:?Set VOCALSIEVE_SESSION_TOKEN}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/v1/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+  api-gpu:
+    profiles: ["gpu"]
+    build:
+      context: .
+      target: gpu
+      args:
+        GPU_BASE: ${VOCALSIEVE_GPU_BASE:-nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04}
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ./data/input:/data/input:ro
+      - ./data/output:/data/output
+      - vocalsieve-state:/state
+      - model-cache:/models
+    environment:
+      HF_HOME: /models
+      VOCALSIEVE_SESSION_TOKEN: ${VOCALSIEVE_SESSION_TOKEN:?Set VOCALSIEVE_SESSION_TOKEN}
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/api/v1/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+
+volumes:
+  vocalsieve-state:
+  model-cache:
