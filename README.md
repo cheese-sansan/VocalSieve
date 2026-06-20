@@ -1,5 +1,9 @@
 # VocalSieve
 
+[![CI](https://github.com/cheese-sansan/VocalSieve/actions/workflows/ci.yml/badge.svg)](https://github.com/cheese-sansan/VocalSieve/actions/workflows/ci.yml)
+[![Security](https://github.com/cheese-sansan/VocalSieve/actions/workflows/security.yml/badge.svg)](https://github.com/cheese-sansan/VocalSieve/actions/workflows/security.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
 VocalSieve is a local-first audio corpus screening workbench. It scans a source
 directory without modifying it, analyzes audio, transcribes eligible files with
 `faster-whisper`, applies configurable rules, ranks the survivors, and exports
@@ -29,7 +33,8 @@ and are never committed to the repository or baked into images.
 ## Quick start with uv
 
 ```powershell
-cd path\to\vocalsieve
+git clone https://github.com/cheese-sansan/VocalSieve.git
+cd VocalSieve
 uv sync --extra tui
 uv run vocalsieve doctor
 uv run vocalsieve

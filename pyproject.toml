@@ -28,6 +28,12 @@ dependencies = [
     "soundfile>=0.12,<1",
 ]
 
+[project.urls]
+Homepage = "https://github.com/cheese-sansan/VocalSieve"
+Repository = "https://github.com/cheese-sansan/VocalSieve.git"
+Issues = "https://github.com/cheese-sansan/VocalSieve/issues"
+Documentation = "https://github.com/cheese-sansan/VocalSieve#readme"
+
 [project.optional-dependencies]
 tui = ["textual>=1,<2"]
 api = [
