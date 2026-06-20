@@ -36,9 +36,10 @@ def _windows_cuda_libraries() -> list[Check]:
         return []
     configure_runtime()
     checks = []
+    win_dll = ctypes.WinDLL  # pyright: ignore[reportAttributeAccessIssue]
     for label, filename in (("cuBLAS", "cublas64_12.dll"), ("cuDNN", "cudnn64_9.dll")):
         try:
-            ctypes.WinDLL(filename)
+            win_dll(filename)
             checks.append(Check(label, True, filename, required=False))
         except OSError as exc:
             checks.append(Check(label, False, f"{filename} not loadable: {exc}", required=False))
