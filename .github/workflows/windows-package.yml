@@ -35,11 +35,20 @@ jobs:
       - name: Fetch corresponding source materials
         shell: powershell
         run: .\scripts\fetch_ffmpeg_sources.ps1
-      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
-        with:
-          path: dist/windows/VocalSieve
-          format: spdx-json
-          output-file: dist/windows/VocalSieve-Windows-x64.spdx.json
+      - name: Generate Windows SBOM
+        shell: powershell
+        env:
+          SYFT_VERSION: "1.42.3"
+          SYFT_SHA256: "e1b9f4945aa64c2b34970bec617623d7f803d0661b48a50b966768b363322e2d"
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "syft-$env:SYFT_VERSION.zip"
+          $toolRoot = Join-Path $env:RUNNER_TEMP "syft-$env:SYFT_VERSION"
+          Invoke-WebRequest "https://github.com/anchore/syft/releases/download/v$env:SYFT_VERSION/syft_$($env:SYFT_VERSION)_windows_amd64.zip" -OutFile $archive -UseBasicParsing
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $env:SYFT_SHA256) { throw "Syft SHA256 mismatch: $actual" }
+          Expand-Archive $archive -DestinationPath $toolRoot -Force
+          & (Join-Path $toolRoot "syft.exe") "dir:dist/windows/VocalSieve" -o "spdx-json=dist/windows/VocalSieve-Windows-x64.spdx.json"
+          if ($LASTEXITCODE -ne 0) { throw "Syft failed with exit code $LASTEXITCODE" }
       - name: Checksums
         shell: powershell
         run: Get-ChildItem dist/windows -File -Recurse | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path.Substring((Resolve-Path '.').Path.Length + 1).Replace('\','/'))" } | Set-Content dist/windows/SHA256SUMS-windows.txt
