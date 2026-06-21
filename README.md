@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/cheese-sansan/VocalSieve/actions/workflows/ci.yml/badge.svg)](https://github.com/cheese-sansan/VocalSieve/actions/workflows/ci.yml)
 [![Security](https://github.com/cheese-sansan/VocalSieve/actions/workflows/security.yml/badge.svg)](https://github.com/cheese-sansan/VocalSieve/actions/workflows/security.yml)
+[![Release](https://img.shields.io/github/v/release/cheese-sansan/VocalSieve?include_prereleases)](https://github.com/cheese-sansan/VocalSieve/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 VocalSieve is a local-first audio corpus screening workbench. It scans a source
@@ -32,10 +33,8 @@ and are never committed to the repository or baked into images.
 
 ## Installation status
 
-VocalSieve is currently an unreleased `0.9.0-rc.1` development preview. There
-are no official GitHub Release downloads yet. The repository contains Windows
-portable build tooling, but a portable archive is only considered published
-when it appears on the [GitHub Releases](https://github.com/cheese-sansan/VocalSieve/releases)
+VocalSieve `0.9.0-rc.1` is a prerelease. Official downloads are published only
+on the [GitHub Releases](https://github.com/cheese-sansan/VocalSieve/releases)
 page with checksums and release notes.
 
 ### Developer install with uv
@@ -50,16 +49,17 @@ uv run vocalsieve
 
 ### Non-developer install
 
-An official Windows portable build is planned but has not been released yet.
-When available, it will be published on GitHub Releases as an
-Authenticode-signed archive with checksums, SBOM, FFmpeg source provenance, and
-release notes. Prerelease builds use a disclosed self-signed project
-certificate, not a publicly trusted commercial certificate. Do not treat CI
-artifacts or locally produced archives as official releases.
+Download `VocalSieve-Windows-x64.zip` from the `0.9.0-rc.1` GitHub prerelease,
+verify it against `SHA256SUMS`, and extract it before launching
+`VocalSieve.exe` or `Start-VocalSieve.cmd`. The archive is Authenticode-signed
+and includes an SBOM and FFmpeg source provenance. This prerelease uses a
+disclosed self-signed project certificate, not a publicly trusted commercial
+certificate. Do not treat CI artifacts or locally produced archives as
+official releases.
 
-The planned archive does not require Python or uv and will include a separate
-GPLv3 FFmpeg executable. Model weights will not be bundled; the selected model
-will download on first use.
+The archive does not require Python or uv and includes a separate GPLv3 FFmpeg
+executable. Model weights are not bundled; the selected model downloads on
+first use.
 
 From a checked-out repository, `Start-VocalSieve.cmd` launches an existing
 virtual environment or falls back to `uv run vocalsieve`.
