@@ -26,6 +26,12 @@ where.exe cudnn64_9.dll
 vocalsieve doctor --deep --device cuda --model tiny
 ```
 
+Plain `vocalsieve doctor` performs fast static checks and never downloads a
+model. Add `--json` for automation. The `--deep` probe may download the chosen
+model and performs real inference. When `device=auto` falls back from CUDA to
+CPU, the CLI warning, persisted job event, and summary report record the
+requested and effective backend without exposing environment-variable values.
+
 The final line must report `Inference probe ... on cuda`. An explicit
 `--device cuda` fails before a job starts when the probe fails. `--device auto`
 falls back to CPU and emits the reason once.

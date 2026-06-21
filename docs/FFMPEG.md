@@ -9,6 +9,10 @@ ffmpeg -version
 vocalsieve doctor
 ```
 
+Doctor executes `ffmpeg -version` with a short timeout instead of checking only
+that a filename exists. Use `vocalsieve doctor --output PATH` to verify the
+nearest existing parent of an intended output directory is writable.
+
 Typical package-manager commands are `winget install Gyan.FFmpeg`,
 `choco install ffmpeg`, or `scoop install ffmpeg`, depending on which manager
 is already installed. Do not copy `ffmpeg.exe` into this repository: large

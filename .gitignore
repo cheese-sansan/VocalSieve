@@ -31,6 +31,7 @@ web/dist/
 final_selected/
 vocalsieve-report.csv
 vocalsieve-report.json
+vocalsieve-summary.json
 
 .DS_Store
 Thumbs.db

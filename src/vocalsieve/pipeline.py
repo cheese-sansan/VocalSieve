@@ -170,12 +170,35 @@ class PipelineRunner:
         if prepare is not None:
             prepare()
         effective_device = getattr(transcriber, "effective_device", self.config.device)
-        if effective_device != self.config.device:
+        effective_compute_type = getattr(
+            transcriber, "effective_compute_type", self.config.compute_type
+        )
+        fallback_reason = getattr(transcriber, "fallback_reason", None)
+        fallback_occurred = getattr(transcriber, "fallback_occurred", fallback_reason is not None)
+        if fallback_occurred:
             self._emit(
                 EventType.WARNING,
                 f"Inference fell back from {self.config.device} to {effective_device}",
                 stage=Stage.TRANSCRIPTION,
-                data={"requested_device": self.config.device, "effective_device": effective_device},
+                data={
+                    "backend_fallback": True,
+                    "requested_device": self.config.device,
+                    "effective_device": effective_device,
+                    "effective_compute_type": effective_compute_type,
+                    "reason_code": fallback_reason,
+                },
+            )
+        elif effective_device not in {self.config.device, "unknown"}:
+            self._emit(
+                EventType.PROGRESS,
+                f"Inference backend selected {effective_device}",
+                stage=Stage.TRANSCRIPTION,
+                data={
+                    "backend_selected": True,
+                    "requested_device": self.config.device,
+                    "effective_device": effective_device,
+                    "effective_compute_type": effective_compute_type,
+                },
             )
         for current, item in enumerate(pending, start=1):
             if self.cancel_event.is_set():
@@ -245,6 +268,9 @@ class PipelineRunner:
             Path(self.config.output_dir).expanduser().resolve(),
             selected,
             all_results,
+            job_id=self.job_id,
+            config=self.config,
+            events=self.database.get_events(self.job_id),
         )
         for relative_path, destination in exported.items():
             self.database.update_file(self.job_id, relative_path, exported_path=destination)

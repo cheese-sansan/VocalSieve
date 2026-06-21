@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from typing import ClassVar
 
 from vocalsieve import cli
+from vocalsieve.doctor import Check
 from vocalsieve.domain import JobStatus, PipelineConfig
 from vocalsieve.events import EventType, PipelineEvent
 
@@ -36,12 +37,34 @@ class FakeService:
     def export_job(self, job_id):
         return {"a.wav": "out/a.wav"}
 
+    def report_job(self, job_id):
+        return {
+            "job_id": job_id,
+            "total_scanned": 2,
+            "candidate_count": 1,
+            "candidate_pass_rate": 0.5,
+            "selected_count": 1,
+            "rejected_count": 1,
+            "error_count": 0,
+            "average_duration": 1.25,
+            "backend": {
+                "requested_device": "auto",
+                "effective_device": "cpu",
+                "effective_compute_type": "int8",
+                "fallback": True,
+                "fallback_reason": "cuda_runtime_unavailable",
+            },
+            "rejection_counts": {"energy_too_low": {"count": 1, "title": "Energy too low"}},
+        }
+
 
 def test_cli_doctor_and_event_output(monkeypatch, capsys):
-    checks = [SimpleNamespace(ok=True, required=True, name="Python", detail="3.12")]
+    checks = [Check(name="Python", ok=True, required=True, detail="3.12")]
     monkeypatch.setattr(cli, "run_diagnostics", lambda **kwargs: checks)
     assert cli.main(["doctor", "--deep", "--device", "cpu"]) == 0
     assert "OK" in capsys.readouterr().out
+    assert cli.main(["doctor", "--json"]) == 0
+    assert '"name": "Python"' in capsys.readouterr().out
 
     event = PipelineEvent(
         job_id="job-1",
@@ -80,6 +103,12 @@ def test_cli_jobs_run_resume_and_export(monkeypatch, tmp_path: Path, capsys):
     assert cli.main(["resume", "job-1"]) == 0
     assert cli.main(["export", "job-1"]) == 0
     assert "Exported 1" in capsys.readouterr().out
+    assert cli.main(["report", "job-1"]) == 0
+    report_output = capsys.readouterr().out
+    assert "energy_too_low" in report_output
+    assert "fallback=cuda_runtime_unavailable" in report_output
+    assert cli.main(["report", "job-1", "--json"]) == 0
+    assert '"job_id": "job-1"' in capsys.readouterr().out
 
 
 def test_cli_error_and_tui_paths(monkeypatch, tmp_path: Path, capsys):

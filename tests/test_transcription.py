@@ -24,6 +24,8 @@ class FakeModel:
 
     def __init__(self, model, device, compute_type):
         self.instances.append((device, compute_type))
+        self.device = "cpu" if device == "auto" else device
+        self.compute_type = "int8" if compute_type == "auto" else compute_type
 
     def transcribe(self, path, **kwargs):
         if self.failures:
@@ -59,6 +61,16 @@ def test_auto_cuda_failure_falls_back_to_cpu(tmp_path: Path):
     assert result.text
     assert transcriber.effective_device == "cpu"
     assert FakeModel.instances == [("auto", "int8"), ("cpu", "int8")]
+    assert transcriber.effective_compute_type == "int8"
+    assert transcriber.fallback_reason == "cuda_library_unavailable"
+    assert transcriber.fallback_occurred
+
+
+def test_auto_cpu_selection_is_not_fallback(tmp_path: Path):
+    transcriber = FasterWhisperTranscriber(config(tmp_path, "auto"))
+    transcriber.transcribe(tmp_path / "a.wav")
+    assert transcriber.effective_device == "cpu"
+    assert not transcriber.fallback_occurred
 
 
 def test_explicit_cuda_failure_is_not_hidden(tmp_path: Path):

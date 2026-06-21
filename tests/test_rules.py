@@ -1,5 +1,5 @@
 from vocalsieve.domain import AudioMetrics, PipelineConfig, Transcript
-from vocalsieve.rules import evaluate_physics, evaluate_transcript, rank_score
+from vocalsieve.rules import REJECTION_CATALOG, evaluate_physics, evaluate_transcript, rank_score
 
 CONFIG = PipelineConfig("source", "output")
 
@@ -21,6 +21,22 @@ def test_transcript_rules_reject_hallucination_and_repetition():
     assert evaluate_transcript(Transcript("", "en", 0.9), CONFIG).code == "no_speech"
     assert evaluate_transcript(Transcript("x", "en", 0.1), CONFIG).code == "text_too_short"
     assert evaluate_transcript(Transcript("x" * 50, "en", 0.1), CONFIG).code == "text_too_long"
+
+
+def test_every_produced_rejection_code_has_catalog_metadata():
+    assert set(REJECTION_CATALOG) == {
+        "duration_too_short",
+        "energy_too_low",
+        "spectral_centroid_too_low",
+        "no_speech",
+        "text_too_short",
+        "text_too_long",
+        "repeated_characters",
+        "hallucination_keyword",
+        "physics_error",
+        "transcription_error",
+    }
+    assert all(info.description and info.guidance for info in REJECTION_CATALOG.values())
 
 
 def test_rank_score_prefers_ideal_length():
