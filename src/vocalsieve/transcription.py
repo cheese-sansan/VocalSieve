@@ -22,7 +22,10 @@ class FasterWhisperTranscriber:
     def __init__(self, config: PipelineConfig):
         self._config = config
         self._model = None
-        self._device = config.device
+        self._load_device = config.device
+        self._effective_device = config.device if config.device != "auto" else "unknown"
+        self._effective_compute_type = config.compute_type
+        self._fallback_reason: str | None = None
 
     def _load_model(self):
         if self._model is None:
@@ -31,14 +34,39 @@ class FasterWhisperTranscriber:
 
             self._model = WhisperModel(
                 self._config.model_size,
-                device=self._device,
+                device=self._load_device,
                 compute_type=self._config.compute_type,
             )
+            self._refresh_effective_device()
         return self._model
 
     @property
     def effective_device(self) -> str:
-        return self._device
+        return self._effective_device
+
+    @property
+    def effective_compute_type(self) -> str:
+        return self._effective_compute_type
+
+    @property
+    def fallback_reason(self) -> str | None:
+        return self._fallback_reason
+
+    @property
+    def fallback_occurred(self) -> bool:
+        return self._fallback_reason is not None
+
+    def _refresh_effective_device(self) -> None:
+        candidate = getattr(self._model, "device", None)
+        if candidate is None:
+            candidate = getattr(getattr(self._model, "model", None), "device", None)
+        if candidate is not None:
+            self._effective_device = str(candidate).casefold()
+        compute_type = getattr(self._model, "compute_type", None)
+        if compute_type is None:
+            compute_type = getattr(getattr(self._model, "model", None), "compute_type", None)
+        if compute_type is not None:
+            self._effective_compute_type = str(compute_type).casefold()
 
     def prepare(self) -> None:
         """Load the model and run a short probe before processing user files."""
@@ -72,7 +100,10 @@ class FasterWhisperTranscriber:
                 raise
             from faster_whisper import WhisperModel
 
-            self._device = "cpu"
+            self._load_device = "cpu"
+            self._effective_device = "cpu"
+            self._effective_compute_type = "int8"
+            self._fallback_reason = self._fallback_reason_code(exc)
             self._model = WhisperModel(self._config.model_size, device="cpu", compute_type="int8")
             segments, info = self._model.transcribe(str(path), **kwargs)
             segment_list = list(segments)
@@ -100,3 +131,12 @@ class FasterWhisperTranscriber:
     def _is_cuda_runtime_error(error: Exception) -> bool:
         message = str(error).casefold()
         return any(token in message for token in ("cublas", "cudnn", "cuda", ".dll"))
+
+    @staticmethod
+    def _fallback_reason_code(error: Exception) -> str:
+        message = str(error).casefold()
+        if "cudnn" in message:
+            return "cudnn_unavailable"
+        if "cublas" in message or ".dll" in message:
+            return "cuda_library_unavailable"
+        return "cuda_runtime_unavailable"

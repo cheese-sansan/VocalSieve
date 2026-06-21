@@ -1,5 +1,8 @@
 # Contributing
 
+Dependency updates follow the risk and validation policy in
+[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md).
+
 1. Create a branch from `main`.
 2. Install development dependencies with `uv sync --all-extras --dev`.
 3. Run `ruff check .`, `pyright`, and `pytest --cov` before opening a pull request.

@@ -10,7 +10,7 @@ from .database import Database
 from .domain import FileResult, Job, JobStatus, PipelineConfig
 from .errors import JobNotFoundError, JobStateError
 from .events import EventSink, ignore_event
-from .exporter import export_selected
+from .exporter import build_report_summary, export_selected
 from .pipeline import PipelineRunner
 
 
@@ -112,7 +112,19 @@ class VocalSieveService:
             Path(job.config.output_dir).expanduser().resolve(),
             selected,
             self.database.get_files(job_id),
+            job_id=job_id,
+            config=job.config,
+            events=self.database.get_events(job_id),
         )
         for relative_path, destination in exported.items():
             self.database.update_file(job_id, relative_path, exported_path=destination)
         return exported
+
+    def report_job(self, job_id: str) -> dict:
+        job = self.get_job(job_id)
+        return build_report_summary(
+            job_id,
+            job.config,
+            self.database.get_files(job_id),
+            self.database.get_events(job_id),
+        )

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
+from dataclasses import asdict
 
 from .doctor import run_diagnostics
 from .domain import PipelineConfig
@@ -37,11 +39,16 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--deep", action="store_true", help="Run a real inference probe")
     doctor.add_argument("--device", choices=["auto", "cpu", "cuda"], default="auto")
     doctor.add_argument("--model", default="tiny")
+    doctor.add_argument("--output", help="Check whether an output path can be written")
+    doctor.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     jobs = subparsers.add_parser("jobs", help="List recent jobs")
     jobs.add_argument("--limit", type=int, default=20)
 
     export = subparsers.add_parser("export", help="Export a completed job again")
     export.add_argument("job_id")
+    report = subparsers.add_parser("report", help="Summarize a screening job")
+    report.add_argument("job_id")
+    report.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     serve = subparsers.add_parser("serve", help="Start the loopback-only HTTP API")
     serve.add_argument("--port", type=int, default=8765)
     return parser
@@ -64,10 +71,18 @@ def main(argv: list[str] | None = None) -> int:
         run_tui(args.database)
         return 0
     if args.command == "doctor":
-        checks = run_diagnostics(deep=args.deep, device=args.device, model_size=args.model)
-        for check in checks:
-            state = "OK" if check.ok else ("WARN" if not check.required else "FAIL")
-            print(f"{state:4} {check.name:16} {check.detail}")
+        checks = run_diagnostics(
+            deep=args.deep,
+            device=args.device,
+            model_size=args.model,
+            output_path=args.output,
+        )
+        if args.json:
+            print(json.dumps([asdict(check) for check in checks], ensure_ascii=False, indent=2))
+        else:
+            for check in checks:
+                state = "OK" if check.ok else ("WARN" if not check.required else "FAIL")
+                print(f"{state:4} {check.name:18} {check.detail}")
         return 0 if all(check.ok for check in checks if check.required) else 1
     if args.command == "serve":
         try:
@@ -115,6 +130,35 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "export":
             exported = service.export_job(args.job_id)
             print(f"Exported {len(exported)} files.")
+            return 0
+        if args.command == "report":
+            summary = service.report_job(args.job_id)
+            if args.json:
+                print(json.dumps(summary, ensure_ascii=False, indent=2))
+            else:
+                print(f"Job: {summary['job_id']}")
+                print(f"Scanned: {summary['total_scanned']}")
+                print(f"Rule candidates: {summary['candidate_count']}")
+                print(f"Candidate pass rate: {summary['candidate_pass_rate']:.1%}")
+                print(f"Selected: {summary['selected_count']}")
+                print(f"Rejected: {summary['rejected_count']}")
+                print(f"Errors: {summary['error_count']}")
+                average = summary["average_duration"]
+                print(
+                    f"Average duration: {average:.2f}s"
+                    if average is not None
+                    else "Average duration: n/a"
+                )
+                backend = summary["backend"]
+                backend_text = (
+                    f"{backend['requested_device']} -> {backend['effective_device']} "
+                    f"({backend['effective_compute_type']})"
+                )
+                if backend["fallback"]:
+                    backend_text += f" fallback={backend['fallback_reason']}"
+                print(f"Backend: {backend_text}")
+                for code, reason in summary["rejection_counts"].items():
+                    print(f"  {code}: {reason['count']} - {reason['title']}")
             return 0
     except KeyboardInterrupt:
         print("\nCancelled by user.", file=sys.stderr)

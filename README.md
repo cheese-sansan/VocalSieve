@@ -30,7 +30,15 @@ Python 3.11 or 3.12 is required. FFmpeg must be available on `PATH` for native
 use; see [FFMPEG.md](docs/FFMPEG.md). Model weights are downloaded on first use
 and are never committed to the repository or baked into images.
 
-## Quick start with uv
+## Installation status
+
+VocalSieve is currently an unreleased `0.9.0-rc.1` development preview. There
+are no official GitHub Release downloads yet. The repository contains Windows
+portable build tooling, but a portable archive is only considered published
+when it appears on the [GitHub Releases](https://github.com/cheese-sansan/VocalSieve/releases)
+page with checksums and release notes.
+
+### Developer install with uv
 
 ```powershell
 git clone https://github.com/cheese-sansan/VocalSieve.git
@@ -40,12 +48,18 @@ uv run vocalsieve doctor
 uv run vocalsieve
 ```
 
-## Windows portable app
+### Non-developer install
 
-Non-developers can download `VocalSieve-Windows-x64.zip`, extract it, and
-double-click `VocalSieve.exe` or `Start-VocalSieve.cmd`. Python and uv are not
-required. The portable archive contains a separate GPLv3 FFmpeg executable but
-does not contain model weights; the selected model downloads on first use.
+An official Windows portable build is planned but has not been released yet.
+When available, it will be published on GitHub Releases as an
+Authenticode-signed archive with checksums, SBOM, FFmpeg source provenance, and
+release notes. Prerelease builds use a disclosed self-signed project
+certificate, not a publicly trusted commercial certificate. Do not treat CI
+artifacts or locally produced archives as official releases.
+
+The planned archive does not require Python or uv and will include a separate
+GPLv3 FFmpeg executable. Model weights will not be bundled; the selected model
+will download on first use.
 
 From a checked-out repository, `Start-VocalSieve.cmd` launches an existing
 virtual environment or falls back to `uv run vocalsieve`.
@@ -57,7 +71,7 @@ uv sync --all-extras
 uv run pytest --cov=vocalsieve
 ```
 
-## Quick start with pip
+### Developer install with pip
 
 ```powershell
 py -3.12 -m venv .venv
@@ -77,12 +91,15 @@ vocalsieve doctor --deep --device cpu --model tiny
 vocalsieve jobs
 vocalsieve resume JOB_ID
 vocalsieve export JOB_ID
+vocalsieve report JOB_ID
+vocalsieve report JOB_ID --json
 ```
 
 Quoted Windows paths are accepted. `top-n` is a maximum after all acoustic and
 transcription rules run, not a promise that the output will contain that many
 files. Results are written to `OUTPUT/final_selected/` with complete CSV and
-JSON reports beside it.
+JSON reports beside it. A separate `vocalsieve-summary.json` explains aggregate
+pass rates and rejection counts; see [FILTERING.md](docs/FILTERING.md).
 
 ## Python SDK
 

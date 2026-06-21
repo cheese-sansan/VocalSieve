@@ -1,8 +1,11 @@
+import hashlib
+import json
 import threading
 from pathlib import Path
 
 import pytest
 
+from tests.fixtures.audio_factory import generated_corpus
 from vocalsieve.domain import AudioMetrics, JobStatus, PipelineConfig, Transcript
 from vocalsieve.pipeline import PipelineRunner
 from vocalsieve.service import VocalSieveService
@@ -49,6 +52,15 @@ def test_end_to_end_preserves_relative_paths_and_source(tmp_path: Path):
     assert (output / "vocalsieve-report.csv").is_file()
     rows = service.query_results(job.id)
     assert {row.status.value for row in rows} == {"physics_rejected", "selected"}
+    backend_events = [
+        event
+        for event in service.database.get_events(job.id)
+        if event["data"].get("backend_selected")
+    ]
+    assert backend_events[0]["data"]["effective_device"] == "cpu"
+    assert not any(
+        event["data"].get("backend_fallback") for event in service.database.get_events(job.id)
+    )
 
 
 def test_completed_files_are_reused_after_resume(tmp_path: Path):
@@ -108,3 +120,51 @@ def test_pipeline_marks_job_failed_on_stage_error(tmp_path: Path, monkeypatch):
     with pytest.raises(RuntimeError, match="scan failed"):
         service.run_job(job.id, analyzer=FakeAnalyzer(), transcriber_factory=fake_factory)
     assert service.get_job(job.id).status is JobStatus.FAILED
+
+
+def test_real_audio_lightweight_end_to_end(tmp_path: Path):
+    source = tmp_path / "source"
+    source.mkdir()
+    files = generated_corpus(source)
+    before = {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in files.items()}
+
+    class FixtureTranscriber:
+        effective_device = "cpu"
+        effective_compute_type = "int8"
+        fallback_reason = "cuda_runtime_unavailable"
+        fallback_occurred = True
+
+        def prepare(self) -> None:
+            return None
+
+        def transcribe(self, path: Path) -> Transcript:
+            if path.stem == "noise":
+                return Transcript("", "en", 0.99)
+            return Transcript("clear voice", "en", 0.01)
+
+    output = tmp_path / "output"
+    service = VocalSieveService(tmp_path / "state.db")
+    job = service.create_job(PipelineConfig(str(source), str(output), top_n=1))
+    completed = service.run_job(job.id, transcriber_factory=lambda _: FixtureTranscriber())
+    assert completed.status is JobStatus.COMPLETED
+
+    results = {row.relative_path: row for row in service.query_results(job.id)}
+    assert results["speaker/normal.wav"].status.value == "selected"
+    assert results["short.wav"].reject_code == "duration_too_short"
+    assert results["quiet.wav"].reject_code == "energy_too_low"
+    assert results["silence.wav"].reject_code == "energy_too_low"
+    assert results["noise.wav"].reject_code == "no_speech"
+    assert results["broken.wav"].reject_code == "physics_error"
+    assert (output / "final_selected" / "speaker" / "normal.wav").is_file()
+
+    after = {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in files.items()}
+    assert after == before
+    report = json.loads((output / "vocalsieve-report.json").read_text(encoding="utf-8"))
+    summary = json.loads((output / "vocalsieve-summary.json").read_text(encoding="utf-8"))
+    assert len(report) == 6
+    assert summary["total_scanned"] == 6
+    assert summary["candidate_count"] == 1
+    assert summary["selected_count"] == 1
+    assert summary["rejected_count"] == 4
+    assert summary["error_count"] == 1
+    assert summary["backend"]["fallback"] is True

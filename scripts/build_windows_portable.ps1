@@ -3,6 +3,7 @@ param(
     [string]$Python = ".venv/Scripts/python.exe",
     [string]$FfmpegPath = "E:/ffmpeg-master-latest-win64-gpl/ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe",
     [string]$FfmpegLicensePath = "E:/ffmpeg-master-latest-win64-gpl/ffmpeg-master-latest-win64-gpl/LICENSE.txt",
+    [string]$SigningCertificatePath = "packaging/VocalSieve-Prerelease-CodeSigning.cer",
     [string]$OutputDirectory = "dist/windows",
     [switch]$RequireSignature
 )
@@ -12,12 +13,14 @@ $root = Split-Path -Parent $PSScriptRoot
 $pythonPath = [System.IO.Path]::GetFullPath((Join-Path $root $Python))
 $ffmpeg = [System.IO.Path]::GetFullPath($FfmpegPath)
 $ffmpegLicense = [System.IO.Path]::GetFullPath($FfmpegLicensePath)
+$signingCertificate = [System.IO.Path]::GetFullPath((Join-Path $root $SigningCertificatePath))
 $manifestPath = Join-Path $root "packaging/ffmpeg-manifest.json"
 $manifest = Get-Content $manifestPath | ConvertFrom-Json
 
 if (-not (Test-Path -LiteralPath $pythonPath)) { throw "Python not found: $pythonPath" }
 if (-not (Test-Path -LiteralPath $ffmpeg)) { throw "FFmpeg not found: $ffmpeg" }
 if (-not (Test-Path -LiteralPath $ffmpegLicense)) { throw "FFmpeg license not found: $ffmpegLicense" }
+if (-not (Test-Path -LiteralPath $signingCertificate)) { throw "Signing certificate not found: $signingCertificate" }
 $actualHash = (Get-FileHash -LiteralPath $ffmpeg -Algorithm SHA256).Hash
 if ($actualHash -ne $manifest.sha256) {
     throw "FFmpeg SHA256 mismatch. Expected $($manifest.sha256), got $actualHash"
@@ -55,6 +58,17 @@ Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $licenseTarget "SOU
 Copy-Item -LiteralPath (Join-Path $root "LICENSE") -Destination $projectLicenseTarget
 Copy-Item -LiteralPath (Join-Path $root "THIRD_PARTY_NOTICES.md") -Destination $portable
 Copy-Item -LiteralPath (Join-Path $root "docs/PYTHON_LICENSES.md") -Destination (Join-Path $projectLicenseTarget "PYTHON_LICENSES.md")
+Copy-Item -LiteralPath $signingCertificate -Destination (Join-Path $projectLicenseTarget "VocalSieve-Prerelease-CodeSigning.cer")
+Copy-Item -LiteralPath $signingCertificate -Destination (Join-Path $outputRoot "VocalSieve-Prerelease-CodeSigning.cer")
+$publicCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($signingCertificate)
+@(
+    "Subject: $($publicCertificate.Subject)"
+    "Thumbprint (SHA-1 identifier): $($publicCertificate.Thumbprint)"
+    "SHA256: $((Get-FileHash -LiteralPath $signingCertificate -Algorithm SHA256).Hash)"
+    "Valid from: $($publicCertificate.NotBefore.ToUniversalTime().ToString('o'))"
+    "Valid until: $($publicCertificate.NotAfter.ToUniversalTime().ToString('o'))"
+    "Trust: self-signed prerelease certificate; not publicly trusted"
+) | Set-Content (Join-Path $outputRoot "VocalSieve-Prerelease-CodeSigning.txt") -Encoding utf8
 Copy-Item -LiteralPath (Join-Path $root "packaging/README-WINDOWS.txt") -Destination $portable
 Copy-Item -LiteralPath (Join-Path $root "Start-VocalSieve.cmd") -Destination $portable
 

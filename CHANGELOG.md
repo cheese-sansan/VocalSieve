@@ -9,7 +9,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - English and Simplified Chinese TUI.
 - SQLite job history, cancellation, resume, filtering, and export.
 - CPU and NVIDIA GPU container targets.
-- Signed Windows portable distribution with a double-click TUI launcher.
+- Windows portable and signing build tooling with a double-click TUI launcher.
 
 ### Changed
 - Rebuilt the package around a `src/` layout and structured events.
