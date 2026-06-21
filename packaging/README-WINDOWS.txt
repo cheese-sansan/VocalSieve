@@ -15,3 +15,8 @@ on first use and cached in your user profile. CPU mode works without CUDA.
 This archive contains a separate GPLv3 FFmpeg executable. Its license and
 source/build provenance are in the licenses\FFmpeg directory. VocalSieve itself
 is licensed under MIT.
+
+VocalSieve.exe is Authenticode-signed with the self-signed VocalSieve
+prerelease certificate. Windows will not trust this certificate by default.
+The public certificate is in licenses\VocalSieve; compare its fingerprint with
+the release notes and checksum files before choosing whether to trust it.

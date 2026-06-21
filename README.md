@@ -51,9 +51,11 @@ uv run vocalsieve
 ### Non-developer install
 
 An official Windows portable build is planned but has not been released yet.
-When available, it will be published on GitHub Releases as a signed archive
-with checksums, SBOM, FFmpeg source provenance, and release notes. Do not treat
-CI artifacts or locally produced archives as official releases.
+When available, it will be published on GitHub Releases as an
+Authenticode-signed archive with checksums, SBOM, FFmpeg source provenance, and
+release notes. Prerelease builds use a disclosed self-signed project
+certificate, not a publicly trusted commercial certificate. Do not treat CI
+artifacts or locally produced archives as official releases.
 
 The planned archive does not require Python or uv and will include a separate
 GPLv3 FFmpeg executable. Model weights will not be bundled; the selected model

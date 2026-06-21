@@ -12,8 +12,7 @@ SAMPLE_RATE = 16_000
 def _write_wav(path: Path, samples: list[float]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     frames = b"".join(
-        struct.pack("<h", max(-32768, min(32767, round(sample * 32767))))
-        for sample in samples
+        struct.pack("<h", max(-32768, min(32767, round(sample * 32767)))) for sample in samples
     )
     with wave.open(str(path), "wb") as audio:
         audio.setnchannels(1)
@@ -26,8 +25,10 @@ def tone(path: Path, *, duration: float, frequency: float, amplitude: float) -> 
     count = round(duration * SAMPLE_RATE)
     _write_wav(
         path,
-        [amplitude * math.sin(2 * math.pi * frequency * index / SAMPLE_RATE)
-         for index in range(count)],
+        [
+            amplitude * math.sin(2 * math.pi * frequency * index / SAMPLE_RATE)
+            for index in range(count)
+        ],
     )
 
 

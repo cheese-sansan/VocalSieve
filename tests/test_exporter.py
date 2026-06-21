@@ -13,12 +13,16 @@ def test_summary_counts_candidates_rejections_errors_and_fallback(tmp_path: Path
         {"status": "physics_rejected", "reject_code": "energy_too_low", "duration": 2.0},
         {"status": "error", "reject_code": "physics_error"},
     ]
-    events = [{"data": {
-        "backend_fallback": True,
-        "effective_device": "cpu",
-        "effective_compute_type": "int8",
-        "reason_code": "cudnn_unavailable",
-    }}]
+    events = [
+        {
+            "data": {
+                "backend_fallback": True,
+                "effective_device": "cpu",
+                "effective_compute_type": "int8",
+                "reason_code": "cudnn_unavailable",
+            }
+        }
+    ]
     summary = build_report_summary("job-1", config, rows, events)
     assert summary["candidate_count"] == 2
     assert summary["selected_count"] == 1

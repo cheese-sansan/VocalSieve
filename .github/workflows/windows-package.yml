@@ -50,5 +50,7 @@ jobs:
             dist/windows/VocalSieve-Windows-x64.zip
             dist/windows/VocalSieve-Windows-x64.spdx.json
             dist/windows/SHA256SUMS-windows.txt
+            dist/windows/VocalSieve-Prerelease-CodeSigning.cer
+            dist/windows/VocalSieve-Prerelease-CodeSigning.txt
             dist/sources/*
           retention-days: 14

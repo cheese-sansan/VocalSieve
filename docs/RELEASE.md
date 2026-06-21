@@ -21,7 +21,9 @@ same commit. The recommended tag format is `v0.9.0-rc.1`.
    run IDs. The workflow verifies that all three SHAs match.
 7. Verify the prerelease contains the Python wheel and sdist, OpenAPI contract,
    signed `VocalSieve-Windows-x64.zip`, SBOMs, checksums, FFmpeg source
-   materials, and CPU/GPU GHCR images.
+   materials, the public signing certificate and fingerprint, and CPU/GPU GHCR
+   images. State clearly that the prerelease certificate is self-signed and is
+   not trusted by Windows by default.
 8. Install the published assets on a clean Windows machine and run
    `VocalSieve.exe doctor` before announcing the prerelease.
 
