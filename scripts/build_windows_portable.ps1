@@ -10,10 +10,20 @@ param(
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
-$pythonPath = [System.IO.Path]::GetFullPath((Join-Path $root $Python))
-$ffmpeg = [System.IO.Path]::GetFullPath($FfmpegPath)
-$ffmpegLicense = [System.IO.Path]::GetFullPath($FfmpegLicensePath)
-$signingCertificate = [System.IO.Path]::GetFullPath((Join-Path $root $SigningCertificatePath))
+
+function Resolve-InputPath {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        return [System.IO.Path]::GetFullPath($Path)
+    }
+    return [System.IO.Path]::GetFullPath((Join-Path $root $Path))
+}
+
+$pythonPath = Resolve-InputPath $Python
+$ffmpeg = Resolve-InputPath $FfmpegPath
+$ffmpegLicense = Resolve-InputPath $FfmpegLicensePath
+$signingCertificate = Resolve-InputPath $SigningCertificatePath
 $manifestPath = Join-Path $root "packaging/ffmpeg-manifest.json"
 $manifest = Get-Content $manifestPath | ConvertFrom-Json
 
@@ -26,7 +36,7 @@ if ($actualHash -ne $manifest.sha256) {
     throw "FFmpeg SHA256 mismatch. Expected $($manifest.sha256), got $actualHash"
 }
 
-$outputRoot = [System.IO.Path]::GetFullPath((Join-Path $root $OutputDirectory))
+$outputRoot = Resolve-InputPath $OutputDirectory
 $workRoot = Join-Path $root "build/pyinstaller"
 foreach ($target in @($outputRoot, $workRoot)) {
     if (Test-Path -LiteralPath $target) {
