@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Mapping
+from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -33,10 +34,33 @@ class ConfigRequest(BaseModel):
         return PipelineConfig(**self.model_dump())
 
 
+class ConfigResponse(BaseModel):
+    source_dir: str
+    output_dir: str
+    model_size: str
+    device: str
+    compute_type: str
+    language: str
+    top_n: int
+    min_duration: float
+    min_rms: float
+    min_centroid: float
+    no_speech_threshold: float
+    min_text_length: int
+    max_text_length: int
+    repeat_char_threshold: int
+    ideal_text_length: int
+    physics_workers: int
+
+    @classmethod
+    def from_domain(cls, config: PipelineConfig) -> ConfigResponse:
+        return cls(**config.to_dict())
+
+
 class JobResponse(BaseModel):
     id: str
     status: str
-    config: dict[str, Any]
+    config: ConfigResponse
     created_at: str
     updated_at: str
     current_stage: str | None
@@ -47,7 +71,7 @@ class JobResponse(BaseModel):
         return cls(
             id=job.id,
             status=job.status.value,
-            config=job.config.to_dict(),
+            config=ConfigResponse.from_domain(job.config),
             created_at=job.created_at,
             updated_at=job.updated_at,
             current_stage=job.current_stage,
@@ -94,6 +118,71 @@ class EventResponse(BaseModel):
     message: str
     data: dict[str, Any]
     timestamp: str
+
+
+class RejectionSummary(BaseModel):
+    count: int
+    title: str
+    description: str
+    config_field: str | None
+
+
+class ThresholdSummary(BaseModel):
+    min_duration: float
+    min_rms: float
+    min_centroid: float
+    no_speech_threshold: float
+    min_text_length: int
+    max_text_length: int
+    repeat_char_threshold: int
+    top_n: int
+
+
+class BackendSummary(BaseModel):
+    requested_device: str
+    effective_device: str
+    effective_compute_type: str
+    fallback: bool
+    fallback_reason: str | None
+
+
+class ReportResponse(BaseModel):
+    schema_version: int
+    job_id: str
+    generated_at: str
+    total_scanned: int
+    candidate_count: int
+    selected_count: int
+    rejected_count: int
+    error_count: int
+    candidate_pass_rate: float
+    average_duration: float | None
+    rejection_counts: dict[str, RejectionSummary]
+    thresholds: ThresholdSummary
+    backend: BackendSummary
+
+    @classmethod
+    def from_summary(cls, summary: Mapping[str, object]) -> ReportResponse:
+        return cls(
+            schema_version=cast(int, summary["schema_version"]),
+            job_id=cast(str, summary["job_id"]),
+            generated_at=cast(str, summary["generated_at"]),
+            total_scanned=cast(int, summary["total_scanned"]),
+            candidate_count=cast(int, summary["candidate_count"]),
+            selected_count=cast(int, summary["selected_count"]),
+            rejected_count=cast(int, summary["rejected_count"]),
+            error_count=cast(int, summary["error_count"]),
+            candidate_pass_rate=cast(float, summary["candidate_pass_rate"]),
+            average_duration=cast(float | None, summary["average_duration"]),
+            rejection_counts={
+                code: RejectionSummary(**cast(dict[str, Any], value))
+                for code, value in cast(
+                    Mapping[str, object], summary["rejection_counts"]
+                ).items()
+            },
+            thresholds=ThresholdSummary(**cast(dict[str, Any], summary["thresholds"])),
+            backend=BackendSummary(**cast(dict[str, Any], summary["backend"])),
+        )
 
 
 class HealthResponse(BaseModel):

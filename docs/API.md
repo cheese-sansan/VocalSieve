@@ -27,7 +27,22 @@ Invoke-RestMethod -Method Post `
 ```
 
 The versioned surface is `/api/v1`: health, doctor, models, job lifecycle,
-results, export, and job events. See `openapi.json` for exact schemas.
+results, report summaries, export, and job events. See `openapi.json` for
+exact schemas. `JobResponse.config` is a typed `ConfigResponse`, not an
+unbounded object, so generated clients can rely on the same fields as
+`PipelineConfig`.
+
+Fetch a job summary:
+
+```powershell
+Invoke-RestMethod `
+  http://127.0.0.1:8765/api/v1/jobs/JOB_ID/report `
+  -Headers $headers
+```
+
+The report response mirrors `vocalsieve report JOB_ID --json`: counts, pass
+rate, average duration, rejection-code distribution, threshold snapshot, and
+backend/fallback metadata.
 
 WebSockets use:
 
@@ -37,5 +52,7 @@ ws://127.0.0.1:8765/api/v1/jobs/JOB_ID/events?token=TOKEN&after=EVENT_ID
 
 Clients must send `Origin: http://127.0.0.1:5173` or
 `Origin: http://localhost:5173`. `after` replays persisted events after the
-specified event id. The browser skeleton reads its token from
-`VITE_VOCALSIEVE_TOKEN` and never imports Python internals.
+specified event id. The browser app reads its token from
+`VITE_VOCALSIEVE_TOKEN`, creates jobs through the local API, shows results and
+report summaries, can trigger export, and never imports Python internals. It is
+a localhost client, not a cloud dashboard.

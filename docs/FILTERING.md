@@ -26,4 +26,12 @@ rejections, while `error` represents a processing failure.
 Every export keeps the row-oriented `vocalsieve-report.csv` and
 `vocalsieve-report.json` formats and adds `vocalsieve-summary.json`. Run
 `vocalsieve report JOB_ID` for the same aggregate explanation without
-re-exporting audio, or add `--json` for machine-readable output.
+re-exporting audio, or add `--json` for machine-readable output. The local API
+exposes the same summary at `GET /api/v1/jobs/{job_id}/report`.
+
+Summary fields are intentionally aggregate and backward-compatible:
+`total_scanned`, `candidate_count`, `selected_count`, `rejected_count`,
+`error_count`, `candidate_pass_rate`, `average_duration`, `rejection_counts`,
+`thresholds`, and `backend`. `thresholds` captures the filter settings used by
+the job. `backend` records requested/effective device, effective compute type,
+and whether an automatic fallback occurred.
