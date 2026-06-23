@@ -107,6 +107,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs/{job_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Report */
+        get: operations["report_api_v1_jobs__job_id__report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}/results": {
         parameters: {
             query?: never;
@@ -162,6 +179,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** BackendSummary */
+        BackendSummary: {
+            /** Effective Compute Type */
+            effective_compute_type: string;
+            /** Effective Device */
+            effective_device: string;
+            /** Fallback */
+            fallback: boolean;
+            /** Fallback Reason */
+            fallback_reason: string | null;
+            /** Requested Device */
+            requested_device: string;
+        };
         /** CheckResponse */
         CheckResponse: {
             /** Detail */
@@ -250,6 +280,60 @@ export interface components {
              */
             top_n: number;
         };
+        /** ConfigResponse */
+        ConfigResponse: {
+            /** Compute Type */
+            compute_type: string;
+            /** Device */
+            device: string;
+            /** Ideal Text Length */
+            ideal_text_length: number;
+            /** Language */
+            language: string;
+            /** Max Text Length */
+            max_text_length: number;
+            /** Min Centroid */
+            min_centroid: number;
+            /** Min Duration */
+            min_duration: number;
+            /** Min Rms */
+            min_rms: number;
+            /** Min Text Length */
+            min_text_length: number;
+            /** Model Size */
+            model_size: string;
+            /** No Speech Threshold */
+            no_speech_threshold: number;
+            /** Output Dir */
+            output_dir: string;
+            /** Physics Workers */
+            physics_workers: number;
+            /** Repeat Char Threshold */
+            repeat_char_threshold: number;
+            /** Source Dir */
+            source_dir: string;
+            /** Top N */
+            top_n: number;
+        };
+        /** EventResponse */
+        EventResponse: {
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: number;
+            /** Job Id */
+            job_id: string;
+            /** Message */
+            message: string;
+            /** Stage */
+            stage: string | null;
+            /** Timestamp */
+            timestamp: string;
+            /** Type */
+            type: string;
+        };
         /** ExportResponse */
         ExportResponse: {
             /** Count */
@@ -308,10 +392,7 @@ export interface components {
         };
         /** JobResponse */
         JobResponse: {
-            /** Config */
-            config: {
-                [key: string]: unknown;
-            };
+            config: components["schemas"]["ConfigResponse"];
             /** Created At */
             created_at: string;
             /** Current Stage */
@@ -333,6 +414,65 @@ export interface components {
             id: string;
             /** Label */
             label: string;
+        };
+        /** RejectionSummary */
+        RejectionSummary: {
+            /** Config Field */
+            config_field: string | null;
+            /** Count */
+            count: number;
+            /** Description */
+            description: string;
+            /** Title */
+            title: string;
+        };
+        /** ReportResponse */
+        ReportResponse: {
+            /** Average Duration */
+            average_duration: number | null;
+            backend: components["schemas"]["BackendSummary"];
+            /** Candidate Count */
+            candidate_count: number;
+            /** Candidate Pass Rate */
+            candidate_pass_rate: number;
+            /** Error Count */
+            error_count: number;
+            /** Generated At */
+            generated_at: string;
+            /** Job Id */
+            job_id: string;
+            /** Rejected Count */
+            rejected_count: number;
+            /** Rejection Counts */
+            rejection_counts: {
+                [key: string]: components["schemas"]["RejectionSummary"];
+            };
+            /** Schema Version */
+            schema_version: number;
+            /** Selected Count */
+            selected_count: number;
+            thresholds: components["schemas"]["ThresholdSummary"];
+            /** Total Scanned */
+            total_scanned: number;
+        };
+        /** ThresholdSummary */
+        ThresholdSummary: {
+            /** Max Text Length */
+            max_text_length: number;
+            /** Min Centroid */
+            min_centroid: number;
+            /** Min Duration */
+            min_duration: number;
+            /** Min Rms */
+            min_rms: number;
+            /** Min Text Length */
+            min_text_length: number;
+            /** No Speech Threshold */
+            no_speech_threshold: number;
+            /** Repeat Char Threshold */
+            repeat_char_threshold: number;
+            /** Top N */
+            top_n: number;
         };
         /** ValidationError */
         ValidationError: {
@@ -565,6 +705,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExportResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    report_api_v1_jobs__job_id__report_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-vocalsieve-token"?: string;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportResponse"];
                 };
             };
             /** @description Validation Error */

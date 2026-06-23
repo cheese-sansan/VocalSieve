@@ -1,6 +1,46 @@
 {
   "components": {
     "schemas": {
+      "BackendSummary": {
+        "properties": {
+          "effective_compute_type": {
+            "title": "Effective Compute Type",
+            "type": "string"
+          },
+          "effective_device": {
+            "title": "Effective Device",
+            "type": "string"
+          },
+          "fallback": {
+            "title": "Fallback",
+            "type": "boolean"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          },
+          "requested_device": {
+            "title": "Requested Device",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requested_device",
+          "effective_device",
+          "effective_compute_type",
+          "fallback",
+          "fallback_reason"
+        ],
+        "title": "BackendSummary",
+        "type": "object"
+      },
       "CheckResponse": {
         "properties": {
           "detail": {
@@ -128,6 +168,145 @@
           "output_dir"
         ],
         "title": "ConfigRequest",
+        "type": "object"
+      },
+      "ConfigResponse": {
+        "properties": {
+          "compute_type": {
+            "title": "Compute Type",
+            "type": "string"
+          },
+          "device": {
+            "title": "Device",
+            "type": "string"
+          },
+          "ideal_text_length": {
+            "title": "Ideal Text Length",
+            "type": "integer"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "max_text_length": {
+            "title": "Max Text Length",
+            "type": "integer"
+          },
+          "min_centroid": {
+            "title": "Min Centroid",
+            "type": "number"
+          },
+          "min_duration": {
+            "title": "Min Duration",
+            "type": "number"
+          },
+          "min_rms": {
+            "title": "Min Rms",
+            "type": "number"
+          },
+          "min_text_length": {
+            "title": "Min Text Length",
+            "type": "integer"
+          },
+          "model_size": {
+            "title": "Model Size",
+            "type": "string"
+          },
+          "no_speech_threshold": {
+            "title": "No Speech Threshold",
+            "type": "number"
+          },
+          "output_dir": {
+            "title": "Output Dir",
+            "type": "string"
+          },
+          "physics_workers": {
+            "title": "Physics Workers",
+            "type": "integer"
+          },
+          "repeat_char_threshold": {
+            "title": "Repeat Char Threshold",
+            "type": "integer"
+          },
+          "source_dir": {
+            "title": "Source Dir",
+            "type": "string"
+          },
+          "top_n": {
+            "title": "Top N",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source_dir",
+          "output_dir",
+          "model_size",
+          "device",
+          "compute_type",
+          "language",
+          "top_n",
+          "min_duration",
+          "min_rms",
+          "min_centroid",
+          "no_speech_threshold",
+          "min_text_length",
+          "max_text_length",
+          "repeat_char_threshold",
+          "ideal_text_length",
+          "physics_workers"
+        ],
+        "title": "ConfigResponse",
+        "type": "object"
+      },
+      "EventResponse": {
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "title": "Data",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "type": {
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "job_id",
+          "type",
+          "stage",
+          "message",
+          "data",
+          "timestamp"
+        ],
+        "title": "EventResponse",
         "type": "object"
       },
       "ExportResponse": {
@@ -328,9 +507,7 @@
       "JobResponse": {
         "properties": {
           "config": {
-            "additionalProperties": true,
-            "title": "Config",
-            "type": "object"
+            "$ref": "#/components/schemas/ConfigResponse"
           },
           "created_at": {
             "title": "Created At",
@@ -411,6 +588,170 @@
           "approximate_vram_mb"
         ],
         "title": "ModelResponse",
+        "type": "object"
+      },
+      "RejectionSummary": {
+        "properties": {
+          "config_field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config Field"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "title",
+          "description",
+          "config_field"
+        ],
+        "title": "RejectionSummary",
+        "type": "object"
+      },
+      "ReportResponse": {
+        "properties": {
+          "average_duration": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Duration"
+          },
+          "backend": {
+            "$ref": "#/components/schemas/BackendSummary"
+          },
+          "candidate_count": {
+            "title": "Candidate Count",
+            "type": "integer"
+          },
+          "candidate_pass_rate": {
+            "title": "Candidate Pass Rate",
+            "type": "number"
+          },
+          "error_count": {
+            "title": "Error Count",
+            "type": "integer"
+          },
+          "generated_at": {
+            "title": "Generated At",
+            "type": "string"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "rejected_count": {
+            "title": "Rejected Count",
+            "type": "integer"
+          },
+          "rejection_counts": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RejectionSummary"
+            },
+            "title": "Rejection Counts",
+            "type": "object"
+          },
+          "schema_version": {
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "selected_count": {
+            "title": "Selected Count",
+            "type": "integer"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/ThresholdSummary"
+          },
+          "total_scanned": {
+            "title": "Total Scanned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "job_id",
+          "generated_at",
+          "total_scanned",
+          "candidate_count",
+          "selected_count",
+          "rejected_count",
+          "error_count",
+          "candidate_pass_rate",
+          "average_duration",
+          "rejection_counts",
+          "thresholds",
+          "backend"
+        ],
+        "title": "ReportResponse",
+        "type": "object"
+      },
+      "ThresholdSummary": {
+        "properties": {
+          "max_text_length": {
+            "title": "Max Text Length",
+            "type": "integer"
+          },
+          "min_centroid": {
+            "title": "Min Centroid",
+            "type": "number"
+          },
+          "min_duration": {
+            "title": "Min Duration",
+            "type": "number"
+          },
+          "min_rms": {
+            "title": "Min Rms",
+            "type": "number"
+          },
+          "min_text_length": {
+            "title": "Min Text Length",
+            "type": "integer"
+          },
+          "no_speech_threshold": {
+            "title": "No Speech Threshold",
+            "type": "number"
+          },
+          "repeat_char_threshold": {
+            "title": "Repeat Char Threshold",
+            "type": "integer"
+          },
+          "top_n": {
+            "title": "Top N",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min_duration",
+          "min_rms",
+          "min_centroid",
+          "no_speech_threshold",
+          "min_text_length",
+          "max_text_length",
+          "repeat_char_threshold",
+          "top_n"
+        ],
+        "title": "ThresholdSummary",
         "type": "object"
       },
       "ValidationError": {
@@ -803,6 +1144,55 @@
           }
         },
         "summary": "Export"
+      }
+    },
+    "/api/v1/jobs/{job_id}/report": {
+      "get": {
+        "operationId": "report_api_v1_jobs__job_id__report_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-vocalsieve-token",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "X-Vocalsieve-Token",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Report"
       }
     },
     "/api/v1/jobs/{job_id}/results": {

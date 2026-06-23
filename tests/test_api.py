@@ -35,6 +35,11 @@ def test_api_requires_token_for_writes_and_exposes_openapi(tmp_path: Path):
         )
         schema = client.get("/openapi.json").json()
         assert "/api/v1/jobs" in schema["paths"]
+        assert "/api/v1/jobs/{job_id}/report" in schema["paths"]
+        assert (
+            schema["components"]["schemas"]["JobResponse"]["properties"]["config"]["$ref"]
+            == "#/components/schemas/ConfigResponse"
+        )
 
 
 def test_api_runs_empty_job_and_replays_events(tmp_path: Path):
@@ -55,6 +60,11 @@ def test_api_runs_empty_job_and_replays_events(tmp_path: Path):
                 break
         assert job["status"] == "completed"
         assert client.get(f"/api/v1/jobs/{job_id}/results", headers=headers).json() == []
+        report = client.get(f"/api/v1/jobs/{job_id}/report", headers=headers).json()
+        assert report["job_id"] == job_id
+        assert report["total_scanned"] == 0
+        assert report["candidate_pass_rate"] == 0.0
+        assert report["backend"]["requested_device"] == "cpu"
         exported = client.post(f"/api/v1/jobs/{job_id}/export", headers=headers)
         assert exported.json()["count"] == 0
 
@@ -125,6 +135,7 @@ def test_api_maps_validation_not_found_and_state_errors(tmp_path: Path):
         assert invalid.status_code == 422
         assert client.get("/api/v1/jobs/missing", headers=headers).status_code == 404
         assert client.get("/api/v1/jobs/missing/results", headers=headers).status_code == 404
+        assert client.get("/api/v1/jobs/missing/report", headers=headers).status_code == 404
         assert client.post("/api/v1/jobs/missing/export", headers=headers).status_code == 404
         assert client.post("/api/v1/jobs/missing/resume", headers=headers).status_code == 404
         assert client.post("/api/v1/jobs/missing/cancel", headers=headers).status_code == 404

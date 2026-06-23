@@ -16,7 +16,9 @@ the choice is remembered and can be changed later in Settings.
 
 ![VocalSieve terminal workbench](docs/images/tui.svg)
 
-The optional React/Vite client consumes only the versioned local API contract:
+The optional React/Vite client consumes only the versioned local API contract.
+It can create jobs, inspect events/results/report summaries, and trigger
+exports without sending audio or metadata to a cloud service:
 
 ![VocalSieve web API skeleton](docs/images/web-dashboard.png)
 
@@ -142,7 +144,9 @@ can expose jobs, paths, results, transcripts, or events requires the token.
 WebSockets additionally require an allowed localhost `Origin`.
 
 The checked-in [OpenAPI contract](openapi.json) generates the TypeScript client
-types used by the React/Vite skeleton in `web/`.
+types used by the React/Vite app in `web/`. The API includes typed job config
+responses and `GET /api/v1/jobs/{job_id}/report`, which returns the same
+summary data as `vocalsieve report JOB_ID`.
 
 ## Development and release checks
 
