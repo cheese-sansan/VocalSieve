@@ -17,5 +17,13 @@ class JobStateError(VocalSieveError, RuntimeError):
     """The requested operation is invalid for the current job state."""
 
 
+class ResourceCapacityError(JobStateError):
+    """A job could not start because the configured runtime is at capacity."""
+
+    def __init__(self, message: str, *, resource: str = "active_jobs"):
+        super().__init__(message)
+        self.resource = resource
+
+
 class BackendUnavailableError(VocalSieveError, RuntimeError):
     """A required audio or inference backend is not usable."""

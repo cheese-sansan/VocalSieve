@@ -32,6 +32,9 @@ def test_deep_diagnostics_reports_failure(monkeypatch):
     probe = next(check for check in checks if check.name == "Inference probe")
     assert not probe.ok
     assert "probe failed" in probe.detail
+    assert probe.code == "inference_probe"
+    assert probe.severity == "error"
+    assert "--device cpu" in probe.action
 
 
 def test_windows_cuda_library_success_path(monkeypatch):

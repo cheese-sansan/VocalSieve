@@ -24,6 +24,10 @@ REPORT_FIELDS = (
     "score",
     "reject_code",
     "reject_detail",
+    "review_decision",
+    "review_note",
+    "reviewed_at",
+    "effective_selected",
 )
 
 
@@ -50,8 +54,18 @@ def export_selected(
 ) -> dict[str, str]:
     final_root = output_root / "final_selected"
     final_root.mkdir(parents=True, exist_ok=True)
+    selected_rows = list(selected)
+    selected_paths = {row["relative_path"] for row in selected_rows}
+    rows = list(all_results)
+    for row in rows:
+        previous = row.get("exported_path")
+        if not previous or row["relative_path"] in selected_paths:
+            continue
+        destination = safe_destination(final_root, row["relative_path"])
+        if destination.is_file():
+            destination.unlink()
     exported: dict[str, str] = {}
-    for row in selected:
+    for row in selected_rows:
         source = safe_destination(source_root, row["relative_path"])
         destination = safe_destination(final_root, row["relative_path"])
         if not source.is_file():
@@ -60,7 +74,6 @@ def export_selected(
         shutil.copy2(source, destination)
         exported[row["relative_path"]] = str(destination)
 
-    rows = list(all_results)
     csv_path = output_root / "vocalsieve-report.csv"
     json_path = output_root / "vocalsieve-report.json"
     summary_path = output_root / "vocalsieve-summary.json"
@@ -93,7 +106,10 @@ def build_report_summary(
     candidate_statuses = {"selected", "transcription_passed"}
     rejected_statuses = {"physics_rejected", "transcription_rejected"}
     candidates = sum(row.get("status") in candidate_statuses for row in rows)
-    selected = sum(row.get("status") == "selected" for row in rows)
+    automatic_selected = sum(row.get("status") == "selected" for row in rows)
+    selected = sum(row.get("effective_selected", row.get("status") == "selected") for row in rows)
+    manual_includes = sum(row.get("review_decision") == "include" for row in rows)
+    manual_excludes = sum(row.get("review_decision") == "exclude" for row in rows)
     rejected = sum(row.get("status") in rejected_statuses for row in rows)
     errors = sum(row.get("status") == "error" for row in rows)
     durations = [float(row["duration"]) for row in rows if row.get("duration") is not None]
@@ -141,12 +157,15 @@ def build_report_summary(
     }
     total = len(rows)
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "job_id": job_id,
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "total_scanned": total,
         "candidate_count": candidates,
         "selected_count": selected,
+        "automatic_selected_count": automatic_selected,
+        "manual_include_count": manual_includes,
+        "manual_exclude_count": manual_excludes,
         "rejected_count": rejected,
         "error_count": errors,
         "candidate_pass_rate": candidates / total if total else 0.0,

@@ -105,7 +105,7 @@ class PipelineRunner:
             }
             for current, future in enumerate(as_completed(futures), start=1):
                 item = futures[future]
-                if self.cancel_event.is_set():
+                if self._cancellation_requested():
                     for remaining in futures:
                         remaining.cancel()
                     break
@@ -201,7 +201,7 @@ class PipelineRunner:
                 },
             )
         for current, item in enumerate(pending, start=1):
-            if self.cancel_event.is_set():
+            if self._cancellation_requested():
                 break
             try:
                 transcript = transcriber.transcribe(item.absolute_path)
@@ -283,11 +283,14 @@ class PipelineRunner:
         )
 
     def _cancelled(self) -> bool:
-        if not self.cancel_event.is_set():
+        if not self._cancellation_requested():
             return False
         self.database.set_job_state(self.job_id, JobStatus.CANCELLED)
         self._emit(EventType.CANCELLED, "Job cancelled")
         return True
+
+    def _cancellation_requested(self) -> bool:
+        return self.cancel_event.is_set() or self.database.cancellation_requested(self.job_id)
 
     def _start_stage(self, stage: Stage, message: str) -> None:
         self.database.set_job_stage(self.job_id, stage)

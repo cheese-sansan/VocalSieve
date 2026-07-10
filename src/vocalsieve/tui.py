@@ -25,7 +25,7 @@ from textual.widgets import (
 )
 
 from .doctor import run_diagnostics
-from .domain import PipelineConfig
+from .domain import PipelineConfig, ReviewDecision, RuntimePolicy
 from .events import EventType, PipelineEvent
 from .service import VocalSieveService
 from .settings import load_language, save_language
@@ -60,9 +60,14 @@ TEXT: dict[str, dict[str, str]] = {
         "reason_filter": "Rejection reason",
         "apply": "Apply",
         "export": "Export again",
+        "review_note": "Review note (optional)",
+        "review_include": "Include",
+        "review_exclude": "Exclude",
+        "review_automatic": "Automatic",
+        "review_updated": "Review updated",
         "select_result": "Select a result to inspect it.",
         "diagnostics": "Run diagnostics",
-        "settings_text": "Database and model caches use the operating system's application data directories.\nThe source corpus is always treated as read-only.\nOnly one job may run at a time.",
+        "settings_text": "Database and model caches use the operating system's application data directories.\nThe source corpus is always treated as read-only.\nUp to {active} jobs may run, including {cuda} CUDA job(s).",
         "interface_language": "Interface language",
         "job": "Job {job_id}",
         "another_active": "Another job is already active",
@@ -86,6 +91,8 @@ TEXT: dict[str, dict[str, str]] = {
         "col_language": "Language",
         "col_reason": "Reason",
         "col_score": "Score",
+        "col_review": "Review",
+        "col_selected": "Final",
         "stage_scan": "Scanning source files",
         "stage_physics": "Analyzing acoustic features",
         "stage_transcription": "Transcribing eligible files",
@@ -127,9 +134,14 @@ TEXT: dict[str, dict[str, str]] = {
         "reason_filter": "淘汰原因",
         "apply": "应用筛选",
         "export": "重新导出",
+        "review_note": "复核备注（可选）",
+        "review_include": "人工选入",
+        "review_exclude": "人工排除",
+        "review_automatic": "恢复自动",
+        "review_updated": "复核结果已更新",
         "select_result": "选择一条结果以查看详情。",
         "diagnostics": "重新诊断",
-        "settings_text": "数据库与模型缓存使用操作系统的应用数据目录。\n源语料始终按只读方式处理。\n同一时间只允许运行一个任务。",
+        "settings_text": "数据库与模型缓存使用操作系统的应用数据目录。\n源语料始终按只读方式处理。\n最多同时运行 {active} 个任务，其中 CUDA 任务最多 {cuda} 个。",
         "interface_language": "界面语言",
         "job": "任务 {job_id}",
         "another_active": "已有其他任务正在运行",
@@ -153,6 +165,8 @@ TEXT: dict[str, dict[str, str]] = {
         "col_language": "语言",
         "col_reason": "原因",
         "col_score": "评分",
+        "col_review": "人工复核",
+        "col_selected": "最终选中",
         "stage_scan": "正在扫描源文件",
         "stage_physics": "正在分析声学特征",
         "stage_transcription": "正在转录候选文件",
@@ -329,14 +343,16 @@ class VocalSieveApp(App):
         self,
         database_path: str | None = None,
         settings_path: str | None = None,
+        runtime_policy: RuntimePolicy | None = None,
     ):
         super().__init__()
-        self.service = VocalSieveService(database_path)
+        self.service = VocalSieveService(database_path, runtime_policy)
         self.settings_path = settings_path
         self.language = load_language(settings_path) or "en"
         self._has_saved_language = load_language(settings_path) is not None
         self.selected_job_id: str | None = None
-        self.active_job_id: str | None = None
+        self.active_job_ids: set[str] = set()
+        self.selected_result_path: str | None = None
         self._workbench_ready = False
 
     def tr(self, key: str, **values: Any) -> str:
@@ -393,6 +409,11 @@ class VocalSieveApp(App):
                     yield Input(placeholder="Rejection reason", id="filter-reason")
                     yield Button("Apply", id="apply-filter")
                     yield Button("Export again", id="export-job")
+                with Horizontal(classes="toolbar"):
+                    yield Input(placeholder="Review note (optional)", id="review-note")
+                    yield Button("Include", id="review-include", variant="success")
+                    yield Button("Exclude", id="review-exclude", variant="error")
+                    yield Button("Automatic", id="review-automatic")
                 yield DataTable(id="result-table", cursor_type="row")
                 yield Static("Select a result to inspect it.", id="result-detail")
             with TabPane("Doctor", id="doctor"):
@@ -469,6 +490,9 @@ class VocalSieveApp(App):
             "cancel-job": "cancel",
             "apply-filter": "apply",
             "export-job": "export",
+            "review-include": "review_include",
+            "review-exclude": "review_exclude",
+            "review-automatic": "review_automatic",
             "run-doctor": "diagnostics",
         }
         for widget_id, key in buttons.items():
@@ -477,6 +501,7 @@ class VocalSieveApp(App):
             "filter-status": "status_filter",
             "filter-language": "language_filter",
             "filter-reason": "reason_filter",
+            "review-note": "review_note",
         }
         for widget_id, key in placeholders.items():
             self.query_one(f"#{widget_id}", Input).placeholder = self.tr(key)
@@ -486,7 +511,13 @@ class VocalSieveApp(App):
             self.tr("stats", accepted=0, rejected=0, errors=0)
         )
         self.query_one("#result-detail", Static).update(self.tr("select_result"))
-        self.query_one("#settings-text", Static).update(self.tr("settings_text"))
+        self.query_one("#settings-text", Static).update(
+            self.tr(
+                "settings_text",
+                active=self.service.runtime_policy.max_active_jobs,
+                cuda=self.service.runtime_policy.max_cuda_jobs,
+            )
+        )
         self.query_one("#settings-language-title", Label).update(self.tr("interface_language"))
         self.query_one("#settings-en", Button).disabled = self.language == "en"
         self.query_one("#settings-zh", Button).disabled = self.language == "zh"
@@ -507,6 +538,8 @@ class VocalSieveApp(App):
             self.tr("col_language"),
             self.tr("col_reason"),
             self.tr("col_score"),
+            self.tr("col_review"),
+            self.tr("col_selected"),
         )
 
     def local_status(self, value: str) -> str:
@@ -538,8 +571,10 @@ class VocalSieveApp(App):
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         if event.data_table.id == "job-table":
             self.selected_job_id = str(event.row_key.value)
+            self.show_job_run(self.selected_job_id)
         elif event.data_table.id == "result-table":
-            self.show_result_detail(str(event.row_key.value))
+            self.selected_result_path = str(event.row_key.value)
+            self.show_result_detail(self.selected_result_path)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id
@@ -552,9 +587,9 @@ class VocalSieveApp(App):
         elif button_id == "view-results" and self.selected_job_id:
             self.query_one(TabbedContent).active = "results"
             self.refresh_results()
-        elif button_id == "cancel-job" and self.active_job_id:
+        elif button_id == "cancel-job" and self.selected_job_id:
             try:
-                self.service.cancel_job(self.active_job_id)
+                self.service.cancel_job(self.selected_job_id)
             except RuntimeError as exc:
                 self.notify(str(exc), severity="warning")
         elif button_id == "apply-filter":
@@ -562,6 +597,8 @@ class VocalSieveApp(App):
         elif button_id == "export-job" and self.selected_job_id:
             exported = self.service.export_job(self.selected_job_id)
             self.notify(self.tr("exported", count=len(exported)))
+        elif button_id in {"review-include", "review-exclude", "review-automatic"}:
+            self.apply_review(button_id)
         elif button_id == "run-doctor":
             self.show_diagnostics()
         elif button_id == "settings-en":
@@ -591,17 +628,41 @@ class VocalSieveApp(App):
         self.start_job(job.id)
 
     def start_job(self, job_id: str) -> None:
-        if self.active_job_id:
-            self.notify(self.tr("another_active"), severity="warning")
+        try:
+            self.service.reserve_job(job_id)
+        except RuntimeError as exc:
+            self.notify(str(exc), severity="warning")
             return
-        self.active_job_id = job_id
+        self.active_job_ids.add(job_id)
         self.query_one(TabbedContent).active = "run"
         self.query_one("#run-title", Label).update(self.tr("job", job_id=job_id))
         self.query_one("#run-log", RichLog).clear()
         self.query_one("#run-progress", ProgressBar).update(total=100, progress=0)
         self.run_job_worker(job_id)
 
-    @work(thread=True, exclusive=True)
+    def show_job_run(self, job_id: str) -> None:
+        job = self.service.get_job(job_id)
+        self.query_one("#run-title", Label).update(self.tr("job", job_id=job_id))
+        self.query_one("#run-stage", Label).update(self.local_stage(job.current_stage))
+        log = self.query_one("#run-log", RichLog)
+        log.clear()
+        events = self.service.database.get_events(job_id)
+        for event in events[-100:]:
+            log.write(f"[dim]{event['timestamp'][11:19]}[/dim] {event['type']}: {event['message']}")
+        progress = next(
+            (
+                event["data"]
+                for event in reversed(events)
+                if event["data"].get("current") is not None and event["data"].get("total")
+            ),
+            None,
+        )
+        if progress:
+            self.query_one("#run-progress", ProgressBar).update(
+                total=progress["total"], progress=progress["current"]
+            )
+
+    @work(thread=True, exclusive=False)
     def run_job_worker(self, job_id: str) -> None:
         error = None
         try:
@@ -609,7 +670,7 @@ class VocalSieveApp(App):
             def sink(event: PipelineEvent) -> None:
                 self.call_from_thread(self.post_message, PipelineMessage(event))
 
-            self.service.run_job(job_id, sink)
+            self.service.run_reserved_job(job_id, sink)
         except Exception as exc:
             error = str(exc)
         self.call_from_thread(self.post_message, JobFinished(job_id, error))
@@ -636,6 +697,8 @@ class VocalSieveApp(App):
 
     def on_pipeline_message(self, message: PipelineMessage) -> None:
         event = message.event
+        if event.job_id != self.selected_job_id:
+            return
         self.query_one("#run-stage", Label).update(
             self.local_stage(event.stage) if event.stage else event.type.value
         )
@@ -659,8 +722,9 @@ class VocalSieveApp(App):
             )
 
     def on_job_finished(self, message: JobFinished) -> None:
-        self.active_job_id = None
-        self.selected_job_id = message.job_id
+        self.active_job_ids.discard(message.job_id)
+        if self.selected_job_id is None:
+            self.selected_job_id = message.job_id
         self.refresh_jobs()
         self.refresh_results()
         self.notify(
@@ -686,8 +750,33 @@ class VocalSieveApp(App):
                 row.language or "-",
                 self.local_reason(row.reject_code),
                 str(row.score if row.score is not None else "-"),
+                row.review_decision.value if row.review_decision else "automatic",
+                "yes" if row.effective_selected else "no",
                 key=row.relative_path,
             )
+
+    def apply_review(self, button_id: str) -> None:
+        if not self.selected_job_id or not self.selected_result_path:
+            self.notify(self.tr("select_result"), severity="warning")
+            return
+        decisions = {
+            "review-include": ReviewDecision.INCLUDE,
+            "review-exclude": ReviewDecision.EXCLUDE,
+            "review-automatic": None,
+        }
+        try:
+            self.service.review_result(
+                self.selected_job_id,
+                self.selected_result_path,
+                decisions[button_id],
+                self.query_one("#review-note", Input).value,
+            )
+        except (KeyError, RuntimeError, ValueError) as exc:
+            self.notify(str(exc), severity="warning")
+            return
+        self.refresh_results()
+        self.show_result_detail(self.selected_result_path)
+        self.notify(self.tr("review_updated"))
 
     def show_result_detail(self, relative_path: str) -> None:
         if not self.selected_job_id:
@@ -709,6 +798,8 @@ class VocalSieveApp(App):
                 f"{self.tr('detail_centroid')}: {row.spectral_centroid or '-'}\n"
                 f"{self.tr('detail_reason')}: {self.local_reason(row.reject_code)} "
                 f"{row.reject_detail or ''}\n"
+                f"Review: {row.review_decision.value if row.review_decision else 'automatic'}  "
+                f"Final: {'yes' if row.effective_selected else 'no'}\n"
                 f"{self.tr('detail_transcript')}: {row.transcription or '-'}"
             )
 
@@ -727,5 +818,8 @@ class VocalSieveApp(App):
         self.service.close()
 
 
-def run_tui(database_path: str | None = None) -> None:
-    VocalSieveApp(database_path).run()
+def run_tui(
+    database_path: str | None = None,
+    runtime_policy: RuntimePolicy | None = None,
+) -> None:
+    VocalSieveApp(database_path, runtime_policy=runtime_policy).run()

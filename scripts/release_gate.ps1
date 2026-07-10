@@ -4,7 +4,8 @@ param(
     [switch]$SkipDocker,
     [switch]$BuildPortable,
     [string]$CorpusPath,
-    [string]$CorpusOutput = (Join-Path $env:TEMP "vocalsieve-release-corpus-output")
+    [string]$CorpusOutput = (Join-Path $env:TEMP "vocalsieve-release-corpus-output"),
+    [int[]]$BenchmarkSizes = @(1000, 10000, 50000)
 )
 
 $ErrorActionPreference = "Stop"
@@ -74,13 +75,21 @@ try {
     }
 
     if ($CorpusPath) {
-        $before = Get-ChildItem $CorpusPath -Recurse -File | Get-FileHash -Algorithm SHA256
-        .\.venv\Scripts\vocalsieve.exe run $CorpusPath $CorpusOutput --model tiny --device cuda --compute-type float16 --language auto --top-n 10
-        Assert-NativeSuccess "CUDA corpus task"
-        $after = Get-ChildItem $CorpusPath -Recurse -File | Get-FileHash -Algorithm SHA256
-        if (Compare-Object $before $after -Property Path, Hash) { throw "Source corpus changed" }
-        $selected = @(Get-ChildItem (Join-Path $CorpusOutput "final_selected") -Recurse -File)
-        if ($selected.Count -ne 10) { throw "Expected 10 selected files, got $($selected.Count)" }
+        $benchmarkArgs = @(
+            "scripts/benchmark_corpus.py",
+            $CorpusPath,
+            $CorpusOutput,
+            "--sizes"
+        ) + $BenchmarkSizes + @(
+            "--model", "tiny",
+            "--device", "cuda",
+            "--compute-type", "float16",
+            "--language", "auto",
+            "--top-n", "10",
+            "--verify-resume"
+        )
+        .\.venv\Scripts\python.exe @benchmarkArgs
+        Assert-NativeSuccess "private corpus benchmark"
     }
 
     if (-not $SkipDocker) {

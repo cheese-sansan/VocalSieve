@@ -13,6 +13,22 @@ PIPELINE_VERSION = 1
 AUDIO_EXTENSIONS = frozenset({".ogg", ".wav", ".flac", ".mp3", ".m4a"})
 
 
+@dataclass(frozen=True, slots=True)
+class RuntimePolicy:
+    """Resource limits shared by local interfaces and SDK clients."""
+
+    max_active_jobs: int = 2
+    max_cuda_jobs: int = 1
+
+    def validate(self) -> None:
+        if self.max_active_jobs < 1:
+            raise ValueError("max_active_jobs must be at least 1")
+        if self.max_cuda_jobs < 0:
+            raise ValueError("max_cuda_jobs cannot be negative")
+        if self.max_cuda_jobs > self.max_active_jobs:
+            raise ValueError("max_cuda_jobs cannot exceed max_active_jobs")
+
+
 class JobStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
@@ -30,6 +46,11 @@ class FileStatus(StrEnum):
     TRANSCRIPTION_REJECTED = "transcription_rejected"
     SELECTED = "selected"
     ERROR = "error"
+
+
+class ReviewDecision(StrEnum):
+    INCLUDE = "include"
+    EXCLUDE = "exclude"
 
 
 class Stage(StrEnum):
@@ -155,6 +176,9 @@ class FileResult:
     no_speech_prob: float | None = None
     score: float | None = None
     exported_path: str | None = None
+    review_decision: ReviewDecision | None = None
+    review_note: str | None = None
+    reviewed_at: str | None = None
 
     @classmethod
     def from_mapping(cls, value: dict[str, Any]) -> FileResult:
@@ -171,9 +195,25 @@ class FileResult:
             no_speech_prob=value.get("no_speech_prob"),
             score=value.get("score"),
             exported_path=value.get("exported_path"),
+            review_decision=(
+                ReviewDecision(value["review_decision"]) if value.get("review_decision") else None
+            ),
+            review_note=value.get("review_note"),
+            reviewed_at=value.get("reviewed_at"),
         )
+
+    @property
+    def effective_selected(self) -> bool:
+        if self.review_decision == ReviewDecision.INCLUDE:
+            return True
+        if self.review_decision == ReviewDecision.EXCLUDE:
+            return False
+        return self.status == FileStatus.SELECTED
 
     def to_dict(self) -> dict[str, Any]:
         value = asdict(self)
         value["status"] = self.status.value
+        if self.review_decision is not None:
+            value["review_decision"] = self.review_decision.value
+        value["effective_selected"] = self.effective_selected
         return value

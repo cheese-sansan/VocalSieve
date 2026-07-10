@@ -3,29 +3,45 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import secrets
 import threading
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from . import __version__
 from .api_models import (
     CheckResponse,
     ConfigRequest,
+    ErrorResponse,
     EventResponse,
     ExportResponse,
     FileResultResponse,
     HealthResponse,
     JobResponse,
     ModelResponse,
+    ReviewRequest,
+    RuntimeStatusResponse,
 )
 from .doctor import run_diagnostics
-from .domain import JobStatus
-from .errors import JobNotFoundError, JobStateError
+from .domain import JobStatus, ReviewDecision, RuntimePolicy
+from .errors import JobNotFoundError, JobStateError, ResourceCapacityError
+from .logging_config import configure_file_logging
 from .service import VocalSieveService
 
 MODELS = (
@@ -36,19 +52,30 @@ MODELS = (
     ModelResponse(id="large-v3", label="Large v3", approximate_vram_mb=10000),
 )
 
+logger = logging.getLogger(__name__)
+
 
 def create_app(
     database_path: str | Path | None = None,
     session_token: str | None = None,
+    runtime_policy: RuntimePolicy | None = None,
 ) -> FastAPI:
+    configure_file_logging()
     token = session_token or secrets.token_urlsafe(32)
-    service = VocalSieveService(database_path)
+    service = VocalSieveService(database_path, runtime_policy)
     workers: dict[str, threading.Thread] = {}
     workers_lock = threading.Lock()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         yield
+        with workers_lock:
+            active = list(workers.items())
+        for job_id, _worker in active:
+            with suppress(JobNotFoundError, JobStateError):
+                service.cancel_job(job_id)
+        for _job_id, worker in active:
+            worker.join(timeout=5)
         service.close()
 
     app = FastAPI(
@@ -57,6 +84,13 @@ def create_app(
         lifespan=lifespan,
         docs_url="/docs",
         openapi_url="/openapi.json",
+        responses={
+            401: {"model": ErrorResponse, "description": "Authentication failed"},
+            404: {"model": ErrorResponse, "description": "Resource not found"},
+            409: {"model": ErrorResponse, "description": "State or capacity conflict"},
+            422: {"model": ErrorResponse, "description": "Invalid request"},
+            503: {"model": ErrorResponse, "description": "Backend unavailable"},
+        },
     )
     app.state.session_token = token
     app.state.service = service
@@ -64,26 +98,122 @@ def create_app(
         CORSMiddleware,
         allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
         allow_credentials=False,
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PATCH"],
         allow_headers=["Content-Type", "X-VocalSieve-Token"],
     )
+
+    @app.exception_handler(HTTPException)
+    async def handle_http_exception(_: Request, exc: HTTPException) -> JSONResponse:
+        if isinstance(exc.detail, dict) and "code" in exc.detail:
+            detail = exc.detail
+        else:
+            defaults = {
+                401: (
+                    "invalid_session_token",
+                    "Restart the local API and use the newly printed session token.",
+                    False,
+                ),
+                404: ("not_found", "Refresh the job list and verify the identifier.", False),
+                409: ("state_conflict", "Refresh the job state and retry if appropriate.", True),
+                422: ("invalid_request", "Correct the request fields and try again.", False),
+                503: ("backend_unavailable", "Run VocalSieve doctor and retry.", True),
+            }
+            code, action, retryable = defaults.get(
+                exc.status_code,
+                ("request_failed", "Review the request and local logs.", False),
+            )
+            detail = {
+                "code": code,
+                "message": str(exc.detail),
+                "action": action,
+                "retryable": retryable,
+            }
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": detail},
+            headers=exc.headers,
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+        first = exc.errors()[0] if exc.errors() else {}
+        location = ".".join(str(part) for part in first.get("loc", ()))
+        message = str(first.get("msg", "Request validation failed"))
+        if location:
+            message = f"{location}: {message}"
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": "invalid_request",
+                    "message": message,
+                    "action": "Correct the request fields and try again.",
+                    "retryable": False,
+                }
+            },
+        )
 
     def require_token(x_vocalsieve_token: str = Header(default="")) -> None:
         if not secrets.compare_digest(x_vocalsieve_token, token):
             raise HTTPException(status_code=401, detail="Invalid session token")
 
-    def make_worker(job_id: str, resume: bool = False) -> threading.Thread:
+    def capacity_detail(exc: ResourceCapacityError) -> dict:
+        return {
+            "code": "path_conflict" if exc.resource == "paths" else "capacity_exceeded",
+            "message": str(exc),
+            "action": (
+                "Choose non-overlapping source and output directories."
+                if exc.resource == "paths"
+                else "Wait for an active job to finish or raise the configured limit."
+            ),
+            "retryable": True,
+        }
+
+    def make_worker(job_id: str) -> threading.Thread:
         def target() -> None:
             try:
-                if resume:
-                    service.resume_job(job_id)
-                else:
-                    service.run_job(job_id)
+                service.run_reserved_job(job_id)
+                job = service.get_job(job_id)
+                if job.status in {JobStatus.RUNNING, JobStatus.CANCELLING}:
+                    service.database.set_job_state(
+                        job_id,
+                        JobStatus.FAILED,
+                        error="Background worker exited before the job reached a terminal state",
+                    )
+            except Exception as exc:
+                logger.exception("Background job %s failed", job_id)
+                with suppress(JobNotFoundError):
+                    job = service.get_job(job_id)
+                    if job.status in {JobStatus.RUNNING, JobStatus.CANCELLING}:
+                        service.database.set_job_state(
+                            job_id,
+                            JobStatus.FAILED,
+                            error=str(exc),
+                        )
             finally:
                 with workers_lock:
                     workers.pop(job_id, None)
 
         return threading.Thread(target=target, name=f"vocalsieve-{job_id[:8]}", daemon=True)
+
+    def start_worker(job_id: str, worker: threading.Thread) -> None:
+        with workers_lock:
+            workers[job_id] = worker
+        try:
+            worker.start()
+        except RuntimeError as exc:
+            with workers_lock:
+                workers.pop(job_id, None)
+            service.database.set_job_state(job_id, JobStatus.FAILED, error=str(exc))
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "worker_start_failed",
+                    "message": str(exc),
+                    "action": "Restart the local API and retry the job.",
+                    "retryable": True,
+                },
+            ) from exc
 
     @app.get("/api/v1/health", response_model=HealthResponse)
     def health() -> HealthResponse:
@@ -112,6 +242,14 @@ def create_app(
     def models() -> tuple[ModelResponse, ...]:
         return MODELS
 
+    @app.get(
+        "/api/v1/runtime",
+        response_model=RuntimeStatusResponse,
+        dependencies=[Depends(require_token)],
+    )
+    def runtime_status() -> RuntimeStatusResponse:
+        return RuntimeStatusResponse(**service.runtime_status())
+
     @app.post(
         "/api/v1/jobs",
         response_model=JobResponse,
@@ -119,15 +257,20 @@ def create_app(
         dependencies=[Depends(require_token)],
     )
     def create_job(request: ConfigRequest) -> JobResponse:
+        job = None
         try:
-            with workers_lock:
-                if workers:
-                    raise HTTPException(status_code=409, detail="Another job is already active")
-                job = service.create_job(request.to_domain())
-                worker = make_worker(job.id)
-                workers[job.id] = worker
-            worker.start()
+            job = service.create_job(request.to_domain())
+            job = service.reserve_job(job.id)
+            worker = make_worker(job.id)
+            start_worker(job.id, worker)
             return JobResponse.from_domain(job)
+        except ResourceCapacityError as exc:
+            if job is not None:
+                service.database.delete_pending_job(job.id)
+            raise HTTPException(
+                status_code=409,
+                detail=capacity_detail(exc),
+            ) from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -172,16 +315,16 @@ def create_app(
     )
     def resume_job(job_id: str) -> JobResponse:
         try:
-            job = service.get_job(job_id)
-            with workers_lock:
-                if workers:
-                    raise HTTPException(status_code=409, detail="Another job is already active")
-                worker = make_worker(job.id, resume=True)
-                workers[job.id] = worker
-            worker.start()
+            job = service.reserve_job(job_id)
+            worker = make_worker(job.id)
+            start_worker(job.id, worker)
             return JobResponse.from_domain(job)
         except JobNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Job not found") from exc
+        except ResourceCapacityError as exc:
+            raise HTTPException(status_code=409, detail=capacity_detail(exc)) from exc
+        except JobStateError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.get(
         "/api/v1/jobs/{job_id}/results",
@@ -203,6 +346,22 @@ def create_app(
             ]
         except JobNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Job not found") from exc
+
+    @app.patch(
+        "/api/v1/jobs/{job_id}/results/review",
+        response_model=FileResultResponse,
+        dependencies=[Depends(require_token)],
+    )
+    def review_result(job_id: str, request: ReviewRequest) -> FileResultResponse:
+        try:
+            decision = None if request.decision == "automatic" else ReviewDecision(request.decision)
+            return FileResultResponse.from_domain(
+                service.review_result(job_id, request.relative_path, decision, request.note)
+            )
+        except JobNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Job or result not found") from exc
+        except JobStateError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     @app.post(
         "/api/v1/jobs/{job_id}/export",

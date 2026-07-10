@@ -26,6 +26,7 @@ def test_summary_counts_candidates_rejections_errors_and_fallback(tmp_path: Path
     summary = build_report_summary("job-1", config, rows, events)
     assert summary["candidate_count"] == 2
     assert summary["selected_count"] == 1
+    assert summary["automatic_selected_count"] == 1
     assert summary["rejected_count"] == 1
     assert summary["error_count"] == 1
     assert summary["candidate_pass_rate"] == 0.5
@@ -57,3 +58,36 @@ def test_empty_summary_has_zero_rate(tmp_path: Path):
     summary = build_report_summary("empty", config, [])
     assert summary["candidate_pass_rate"] == 0.0
     assert summary["average_duration"] is None
+
+
+def test_export_reconciles_only_previously_managed_files(tmp_path: Path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "a.wav").write_bytes(b"a")
+    (source / "b.wav").write_bytes(b"b")
+    output = tmp_path / "out"
+    final = output / "final_selected"
+    final.mkdir(parents=True)
+    stale = final / "a.wav"
+    stale.write_bytes(b"old")
+    unknown = final / "keep.txt"
+    unknown.write_text("user")
+    rows = [
+        {
+            "relative_path": "a.wav",
+            "status": "selected",
+            "review_decision": "exclude",
+            "effective_selected": False,
+            "exported_path": str(stale),
+        },
+        {
+            "relative_path": "b.wav",
+            "status": "transcription_passed",
+            "review_decision": "include",
+            "effective_selected": True,
+        },
+    ]
+    export_selected(source, output, [rows[1]], rows)
+    assert not stale.exists()
+    assert (final / "b.wav").read_bytes() == b"b"
+    assert unknown.read_text() == "user"

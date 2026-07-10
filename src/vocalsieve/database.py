@@ -15,10 +15,19 @@ from typing import Any
 
 from platformdirs import user_data_path
 
-from .domain import FileStatus, Job, JobStatus, PipelineConfig, ScannedFile
+from .domain import (
+    FileStatus,
+    Job,
+    JobStatus,
+    PipelineConfig,
+    ReviewDecision,
+    RuntimePolicy,
+    ScannedFile,
+)
+from .errors import ResourceCapacityError
 from .events import PipelineEvent
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def default_database_path() -> Path:
@@ -53,27 +62,62 @@ class Database:
                 raise
 
     def _migrate(self) -> None:
-        with self.transaction() as connection:
-            connection.execute(
+        with self._lock:
+            self._connection.execute(
                 "CREATE TABLE IF NOT EXISTS schema_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)"
             )
-            row = connection.execute(
+            self._connection.commit()
+            row = self._connection.execute(
                 "SELECT value FROM schema_meta WHERE key = 'version'"
             ).fetchone()
-            version = int(row["value"]) if row else 0
-            if version > SCHEMA_VERSION:
-                raise RuntimeError(
-                    f"Database schema {version} is newer than supported {SCHEMA_VERSION}"
-                )
+        version = int(row["value"]) if row else 0
+        if version > SCHEMA_VERSION:
+            raise RuntimeError(
+                f"Database schema {version} is newer than supported {SCHEMA_VERSION}"
+            )
+        if 0 < version < SCHEMA_VERSION:
+            self._backup_before_migration()
+        with self.transaction() as connection:
             if version < 1:
                 self._create_schema(connection)
             elif version < 2:
                 connection.execute("ALTER TABLE jobs ADD COLUMN owner_pid INTEGER")
+            if 0 < version < 3:
+                connection.execute("ALTER TABLE files ADD COLUMN review_decision TEXT")
+                connection.execute("ALTER TABLE files ADD COLUMN review_note TEXT")
+                connection.execute("ALTER TABLE files ADD COLUMN reviewed_at TEXT")
+                self._create_resource_leases(connection)
+                active_rows = connection.execute(
+                    "SELECT id, owner_pid, config_json, updated_at FROM jobs WHERE status IN (?, ?)",
+                    (JobStatus.RUNNING, JobStatus.CANCELLING),
+                ).fetchall()
+                for active in active_rows:
+                    config = PipelineConfig.from_dict(json.loads(active["config_json"]))
+                    device_class = "cpu" if config.device == "cpu" else "cuda"
+                    connection.execute(
+                        """
+                        INSERT INTO resource_leases(job_id, owner_pid, device_class, acquired_at)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (
+                            active["id"],
+                            active["owner_pid"] or 0,
+                            device_class,
+                            active["updated_at"],
+                        ),
+                    )
             if version < SCHEMA_VERSION:
                 connection.execute(
                     "INSERT OR REPLACE INTO schema_meta(key, value) VALUES('version', ?)",
                     (str(SCHEMA_VERSION),),
                 )
+
+    def _backup_before_migration(self) -> None:
+        backup_path = self.path.with_name(f"{self.path.name}.pre-v{SCHEMA_VERSION}.bak")
+        if backup_path.exists():
+            return
+        with sqlite3.connect(backup_path) as backup, self._lock:
+            self._connection.backup(backup)
 
     @staticmethod
     def _create_schema(connection: sqlite3.Connection) -> None:
@@ -110,6 +154,9 @@ class Database:
                 no_speech_prob REAL,
                 score REAL,
                 exported_path TEXT,
+                review_decision TEXT,
+                review_note TEXT,
+                reviewed_at TEXT,
                 updated_at TEXT NOT NULL,
                 UNIQUE(job_id, relative_path)
             );
@@ -127,6 +174,23 @@ class Database:
             CREATE INDEX events_job_idx ON events(job_id, id);
             """
         )
+        Database._create_resource_leases(connection)
+
+    @staticmethod
+    def _create_resource_leases(connection: sqlite3.Connection) -> None:
+        connection.execute(
+            """
+            CREATE TABLE resource_leases (
+                job_id TEXT PRIMARY KEY REFERENCES jobs(id) ON DELETE CASCADE,
+                owner_pid INTEGER NOT NULL,
+                device_class TEXT NOT NULL,
+                acquired_at TEXT NOT NULL
+            )
+            """
+        )
+        connection.execute(
+            "CREATE INDEX resource_leases_device_idx ON resource_leases(device_class)"
+        )
 
     @staticmethod
     def _now() -> str:
@@ -134,27 +198,43 @@ class Database:
 
     def recover_interrupted_jobs(self) -> int:
         with self.transaction() as connection:
-            rows = connection.execute(
-                "SELECT id, owner_pid FROM jobs WHERE status IN (?, ?)",
-                (JobStatus.RUNNING, JobStatus.CANCELLING),
-            ).fetchall()
-            stale = [row["id"] for row in rows if not self._process_is_alive(row["owner_pid"])]
-            connection.executemany(
-                """
-                UPDATE jobs SET status = ?, error = ?, owner_pid = NULL, updated_at = ?
-                WHERE id = ?
-                """,
-                [
-                    (
-                        JobStatus.CANCELLED,
-                        "The previous process exited before the job finished",
-                        self._now(),
-                        job_id,
-                    )
-                    for job_id in stale
-                ],
+            return self._recover_interrupted_jobs(connection)
+
+    def _recover_interrupted_jobs(self, connection: sqlite3.Connection) -> int:
+        rows = connection.execute(
+            "SELECT id, owner_pid FROM jobs WHERE status IN (?, ?)",
+            (JobStatus.RUNNING, JobStatus.CANCELLING),
+        ).fetchall()
+        stale = [row["id"] for row in rows if not self._process_is_alive(row["owner_pid"])]
+        connection.executemany(
+            """
+            UPDATE jobs SET status = ?, error = ?, owner_pid = NULL, updated_at = ?
+            WHERE id = ?
+            """,
+            [
+                (
+                    JobStatus.CANCELLED,
+                    "The previous process exited before the job finished",
+                    self._now(),
+                    job_id,
+                )
+                for job_id in stale
+            ],
+        )
+        connection.executemany(
+            "DELETE FROM resource_leases WHERE job_id = ?",
+            [(job_id,) for job_id in stale],
+        )
+        connection.execute(
+            """
+            DELETE FROM resource_leases
+            WHERE job_id IN (
+                SELECT id FROM jobs WHERE status NOT IN (?, ?)
             )
-            return len(stale)
+            """,
+            (JobStatus.RUNNING, JobStatus.CANCELLING),
+        )
+        return len(stale)
 
     @staticmethod
     def _process_is_alive(pid: int | None) -> bool:
@@ -224,25 +304,102 @@ class Database:
             error=row["error"],
         )
 
-    def claim_job(self, job_id: str) -> Job:
+    @staticmethod
+    def _paths_overlap(first: Path, second: Path) -> bool:
+        return first == second or first in second.parents or second in first.parents
+
+    def claim_job(
+        self,
+        job_id: str,
+        *,
+        policy: RuntimePolicy | None = None,
+        device_class: str = "cpu",
+    ) -> Job:
+        runtime_policy = policy or RuntimePolicy()
+        runtime_policy.validate()
+        if device_class not in {"cpu", "cuda"}:
+            raise ValueError("device_class must be cpu or cuda")
         with self.transaction() as connection:
-            active = connection.execute(
-                "SELECT id FROM jobs WHERE status IN (?, ?) AND id != ? LIMIT 1",
-                (JobStatus.RUNNING, JobStatus.CANCELLING, job_id),
+            self._recover_interrupted_jobs(connection)
+            row = connection.execute(
+                "SELECT status, config_json FROM jobs WHERE id = ?", (job_id,)
             ).fetchone()
-            if active:
-                raise RuntimeError(f"Another job is already active: {active['id']}")
-            row = connection.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
             if row is None:
                 raise KeyError(f"Unknown job: {job_id}")
             allowed = {JobStatus.PENDING, JobStatus.CANCELLED, JobStatus.FAILED}
             if JobStatus(row["status"]) not in allowed:
                 raise RuntimeError(f"Job cannot be started from status {row['status']}")
+            leases = connection.execute(
+                """
+                SELECT resource_leases.job_id, resource_leases.device_class, jobs.config_json
+                FROM resource_leases JOIN jobs ON jobs.id = resource_leases.job_id
+                WHERE resource_leases.job_id != ?
+                """,
+                (job_id,),
+            ).fetchall()
+            if len(leases) >= runtime_policy.max_active_jobs:
+                raise ResourceCapacityError(
+                    f"Runtime capacity is full ({runtime_policy.max_active_jobs} active jobs)",
+                    resource="active_jobs",
+                )
+            cuda_jobs = sum(lease["device_class"] == "cuda" for lease in leases)
+            if device_class == "cuda" and cuda_jobs >= runtime_policy.max_cuda_jobs:
+                raise ResourceCapacityError(
+                    f"CUDA capacity is full ({runtime_policy.max_cuda_jobs} active CUDA jobs)",
+                    resource="cuda_jobs",
+                )
+            config = PipelineConfig.from_dict(json.loads(row["config_json"]))
+            source = Path(config.source_dir).expanduser().resolve()
+            output = Path(config.output_dir).expanduser().resolve()
+            for lease in leases:
+                active_config = PipelineConfig.from_dict(json.loads(lease["config_json"]))
+                active_source = Path(active_config.source_dir).expanduser().resolve()
+                active_output = Path(active_config.output_dir).expanduser().resolve()
+                if (
+                    self._paths_overlap(output, active_output)
+                    or self._paths_overlap(output, active_source)
+                    or self._paths_overlap(source, active_output)
+                ):
+                    raise ResourceCapacityError(
+                        f"Job paths conflict with active job {lease['job_id']}",
+                        resource="paths",
+                    )
+            now = self._now()
+            connection.execute(
+                """
+                INSERT INTO resource_leases(job_id, owner_pid, device_class, acquired_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                (job_id, os.getpid(), device_class, now),
+            )
             connection.execute(
                 "UPDATE jobs SET status = ?, error = NULL, owner_pid = ?, updated_at = ? WHERE id = ?",
-                (JobStatus.RUNNING, os.getpid(), self._now(), job_id),
+                (JobStatus.RUNNING, os.getpid(), now, job_id),
             )
         return self.get_job(job_id)
+
+    def delete_pending_job(self, job_id: str) -> None:
+        with self.transaction() as connection:
+            connection.execute(
+                "DELETE FROM jobs WHERE id = ? AND status = ?", (job_id, JobStatus.PENDING)
+            )
+
+    def runtime_status(self, policy: RuntimePolicy | None = None) -> dict[str, Any]:
+        runtime_policy = policy or RuntimePolicy()
+        runtime_policy.validate()
+        with self.transaction() as connection:
+            self._recover_interrupted_jobs(connection)
+            rows = connection.execute(
+                "SELECT job_id, device_class, acquired_at FROM resource_leases ORDER BY acquired_at"
+            ).fetchall()
+        leases = [dict(row) for row in rows]
+        return {
+            "max_active_jobs": runtime_policy.max_active_jobs,
+            "active_jobs": len(leases),
+            "max_cuda_jobs": runtime_policy.max_cuda_jobs,
+            "active_cuda_jobs": sum(row["device_class"] == "cuda" for row in leases),
+            "leases": leases,
+        }
 
     def set_job_state(
         self,
@@ -266,6 +423,8 @@ class Database:
                 """,
                 (status, stage, error, owner_pid, self._now(), job_id),
             )
+            if owner_pid is None:
+                connection.execute("DELETE FROM resource_leases WHERE job_id = ?", (job_id,))
 
     def set_job_stage(self, job_id: str, stage: str) -> None:
         with self.transaction() as connection:
@@ -273,6 +432,13 @@ class Database:
                 "UPDATE jobs SET current_stage = ?, updated_at = ? WHERE id = ?",
                 (stage, self._now(), job_id),
             )
+
+    def cancellation_requested(self, job_id: str) -> bool:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT status FROM jobs WHERE id = ?", (job_id,)
+            ).fetchone()
+        return bool(row and row["status"] == JobStatus.CANCELLING)
 
     def upsert_scanned_file(self, job_id: str, scanned: ScannedFile, cache_key: str) -> sqlite3.Row:
         with self.transaction() as connection:
@@ -297,6 +463,7 @@ class Database:
                         reject_code=NULL, reject_detail=NULL, duration=NULL, rms=NULL,
                         spectral_centroid=NULL, transcription=NULL, language=NULL,
                         no_speech_prob=NULL, score=NULL, exported_path=NULL,
+                        review_decision=NULL, review_note=NULL, reviewed_at=NULL,
                         updated_at=excluded.updated_at
                     """,
                     (
@@ -327,6 +494,9 @@ class Database:
             "no_speech_prob",
             "score",
             "exported_path",
+            "review_decision",
+            "review_note",
+            "reviewed_at",
         }
         invalid = set(values) - allowed
         if invalid:
@@ -377,7 +547,51 @@ class Database:
         query += " ORDER BY relative_path"
         with self._lock:
             rows = self._connection.execute(query, parameters).fetchall()
-        return [dict(row) for row in rows]
+        results = [dict(row) for row in rows]
+        for row in results:
+            row["effective_selected"] = row["review_decision"] == ReviewDecision.INCLUDE or (
+                row["review_decision"] is None and row["status"] == FileStatus.SELECTED
+            )
+        return results
+
+    def review_file(
+        self,
+        job_id: str,
+        relative_path: str,
+        decision: ReviewDecision | None,
+        note: str | None = None,
+    ) -> dict[str, Any]:
+        cleaned_note = note.strip() if note else None
+        if cleaned_note and len(cleaned_note) > 500:
+            raise ValueError("Review note cannot exceed 500 characters")
+        with self.transaction() as connection:
+            job = connection.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            if job is None:
+                raise KeyError(f"Unknown job: {job_id}")
+            if JobStatus(job["status"]) != JobStatus.COMPLETED:
+                raise RuntimeError("Only completed jobs can be reviewed")
+            row = connection.execute(
+                "SELECT review_decision FROM files WHERE job_id = ? AND relative_path = ?",
+                (job_id, relative_path),
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"Unknown result: {relative_path}")
+            connection.execute(
+                """
+                UPDATE files
+                SET review_decision = ?, review_note = ?, reviewed_at = ?, updated_at = ?
+                WHERE job_id = ? AND relative_path = ?
+                """,
+                (
+                    decision.value if decision else None,
+                    cleaned_note if decision else None,
+                    self._now() if decision else None,
+                    self._now(),
+                    job_id,
+                    relative_path,
+                ),
+            )
+        return next(row for row in self.get_files(job_id) if row["relative_path"] == relative_path)
 
     def reset_selection(self, job_id: str) -> None:
         with self.transaction() as connection:

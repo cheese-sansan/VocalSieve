@@ -16,7 +16,8 @@ the choice is remembered and can be changed later in Settings.
 
 ![VocalSieve terminal workbench](docs/images/tui.svg)
 
-The optional React/Vite client consumes only the versioned local API contract:
+The experimental React/Vite client consumes only the versioned local API contract.
+It remains a developer preview and is not part of the v1.0 end-user release gate:
 
 ![VocalSieve web API skeleton](docs/images/web-dashboard.png)
 
@@ -33,7 +34,7 @@ and are never committed to the repository or baked into images.
 
 ## Installation status
 
-VocalSieve `0.9.0-rc.1` is a prerelease. Official downloads are published only
+VocalSieve `0.9.0-rc.2` is a prerelease. Official downloads are published only
 on the [GitHub Releases](https://github.com/cheese-sansan/VocalSieve/releases)
 page with checksums and release notes.
 
@@ -49,7 +50,7 @@ uv run vocalsieve
 
 ### Non-developer install
 
-Download `VocalSieve-Windows-x64.zip` from the `0.9.0-rc.1` GitHub prerelease,
+Download `VocalSieve-Windows-x64.zip` from the `0.9.0-rc.2` GitHub prerelease,
 verify it against `SHA256SUMS`, and extract it before launching
 `VocalSieve.exe` or `Start-VocalSieve.cmd`. The archive is Authenticode-signed
 and includes an SBOM and FFmpeg source provenance. This prerelease uses a
@@ -93,6 +94,7 @@ vocalsieve resume JOB_ID
 vocalsieve export JOB_ID
 vocalsieve report JOB_ID
 vocalsieve report JOB_ID --json
+vocalsieve --max-active-jobs 2 --max-cuda-jobs 1 serve
 ```
 
 Quoted Windows paths are accepted. `top-n` is a maximum after all acoustic and
@@ -100,6 +102,9 @@ transcription rules run, not a promise that the output will contain that many
 files. Results are written to `OUTPUT/final_selected/` with complete CSV and
 JSON reports beside it. A separate `vocalsieve-summary.json` explains aggregate
 pass rates and rejection counts; see [FILTERING.md](docs/FILTERING.md).
+Completed results can be manually included or excluded in the TUI. The automated
+status is preserved, every review is audited, and later exports use the effective
+reviewed selection.
 
 ## Python SDK
 
@@ -118,6 +123,10 @@ with VocalSieveClient("vocalsieve.db") as client:
     completed = client.run_job(job.id)
     results = client.query_results(completed.id)
 ```
+
+The default runtime permits two active jobs while reserving at most one CUDA job.
+Processes sharing the same SQLite database coordinate those limits; submissions
+that exceed capacity or use conflicting output paths fail immediately rather than queueing.
 
 The public SDK surface is exported from `vocalsieve`; database rows and adapter
 implementations are private. See [API.md](docs/API.md) for the HTTP contract.
@@ -141,6 +150,9 @@ prints a fresh session token. `/api/v1/health` is public; every endpoint that
 can expose jobs, paths, results, transcripts, or events requires the token.
 WebSockets additionally require an allowed localhost `Origin`.
 
+The Windows portable package remains focused on the CLI, TUI, and `doctor` command.
+Install the Python wheel or use a container when the local HTTP API is required.
+
 The checked-in [OpenAPI contract](openapi.json) generates the TypeScript client
 types used by the React/Vite skeleton in `web/`.
 
@@ -156,6 +168,9 @@ npm --prefix web run build
 pip-audit --skip-editable
 scripts\release_gate.ps1 -BuildPortable -CorpusPath "E:\data\release-corpus"
 ```
+
+The private-corpus 1k/10k/50k procedure and publication boundaries are documented
+in [BENCHMARK.md](docs/BENCHMARK.md).
 
 Contributions are welcome under the [MIT License](LICENSE). Read
 [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the
