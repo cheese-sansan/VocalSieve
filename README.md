@@ -34,9 +34,9 @@ and are never committed to the repository or baked into images.
 
 ## Installation status
 
-VocalSieve `0.9.0-rc.2` is a prerelease. Official downloads are published only
-on the [GitHub Releases](https://github.com/cheese-sansan/VocalSieve/releases)
-page with checksums and release notes.
+VocalSieve `0.9.0-rc.2` is the current release candidate, but it has not been
+published yet. Until its signed GitHub Release is visible and smoke-tested,
+there is no official rc.2 download.
 
 ### Developer install with uv
 
@@ -50,10 +50,11 @@ uv run vocalsieve
 
 ### Non-developer install
 
-Download `VocalSieve-Windows-x64.zip` from the `0.9.0-rc.2` GitHub prerelease,
-verify it against `SHA256SUMS`, and extract it before launching
-`VocalSieve.exe` or `Start-VocalSieve.cmd`. The archive is Authenticode-signed
-and includes an SBOM and FFmpeg source provenance. This prerelease uses a
+After the `0.9.0-rc.2` GitHub prerelease is published and smoke-tested,
+download `VocalSieve-Windows-x64.zip`, verify it against `SHA256SUMS`, and
+extract it before launching `VocalSieve.exe` or `Start-VocalSieve.cmd`. The
+archive is Authenticode-signed and includes an SBOM and FFmpeg source
+provenance. This prerelease uses a
 disclosed self-signed project certificate, not a publicly trusted commercial
 certificate. Do not treat CI artifacts or locally produced archives as
 official releases.
