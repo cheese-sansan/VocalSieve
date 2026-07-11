@@ -68,10 +68,22 @@ class FileResultResponse(BaseModel):
     no_speech_prob: float | None
     score: float | None
     exported_path: str | None
+    review_decision: str | None
+    review_note: str | None
+    reviewed_at: str | None
+    effective_selected: bool
 
     @classmethod
     def from_domain(cls, result: FileResult) -> FileResultResponse:
         return cls(**result.to_dict())
+
+
+class ReviewRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    relative_path: str = Field(min_length=1)
+    decision: str = Field(pattern="^(automatic|include|exclude)$")
+    note: str | None = Field(default=None, max_length=500)
 
 
 class CheckResponse(BaseModel):
@@ -79,6 +91,9 @@ class CheckResponse(BaseModel):
     ok: bool
     detail: str
     required: bool
+    code: str
+    severity: str
+    action: str
 
 
 class ExportResponse(BaseModel):
@@ -106,3 +121,28 @@ class ModelResponse(BaseModel):
     id: str
     label: str
     approximate_vram_mb: int | None
+
+
+class ResourceLeaseResponse(BaseModel):
+    job_id: str
+    device_class: str
+    acquired_at: str
+
+
+class RuntimeStatusResponse(BaseModel):
+    max_active_jobs: int
+    active_jobs: int
+    max_cuda_jobs: int
+    active_cuda_jobs: int
+    leases: list[ResourceLeaseResponse]
+
+
+class ErrorDetail(BaseModel):
+    code: str
+    message: str
+    action: str
+    retryable: bool = False
+
+
+class ErrorResponse(BaseModel):
+    error: ErrorDetail

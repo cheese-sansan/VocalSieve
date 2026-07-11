@@ -22,5 +22,6 @@ def test_async_sdk_basic_flow(tmp_path: Path):
             jobs = await client.list_jobs()
             assert jobs[0].id == job.id
             assert await client.query_results(job.id) == []
+            assert (await client.runtime_status())["max_active_jobs"] == 2
 
     asyncio.run(run())

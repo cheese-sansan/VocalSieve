@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from dataclasses import asdict
 
 from .doctor import run_diagnostics
-from .domain import PipelineConfig
+from .domain import PipelineConfig, RuntimePolicy
 from .events import PipelineEvent
+from .logging_config import configure_file_logging
 from .runtime import configure_runtime
 from .service import VocalSieveService
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -20,6 +24,8 @@ def build_parser() -> argparse.ArgumentParser:
         prog="vocalsieve", description="Local-first audio corpus screening workbench"
     )
     parser.add_argument("--database", help=argparse.SUPPRESS)
+    parser.add_argument("--max-active-jobs", type=int)
+    parser.add_argument("--max-cuda-jobs", type=int)
     subparsers = parser.add_subparsers(dest="command")
 
     run = subparsers.add_parser("run", help="Create and run a screening job")
@@ -64,11 +70,29 @@ def print_event(event: PipelineEvent) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     configure_runtime()
+    configure_file_logging()
     args = build_parser().parse_args(argv)
+    try:
+        runtime_policy = RuntimePolicy(
+            max_active_jobs=(
+                args.max_active_jobs
+                if args.max_active_jobs is not None
+                else int(os.environ.get("VOCALSIEVE_MAX_ACTIVE_JOBS", "2"))
+            ),
+            max_cuda_jobs=(
+                args.max_cuda_jobs
+                if args.max_cuda_jobs is not None
+                else int(os.environ.get("VOCALSIEVE_MAX_CUDA_JOBS", "1"))
+            ),
+        )
+        runtime_policy.validate()
+    except ValueError as exc:
+        print(f"Error: invalid runtime policy: {exc}", file=sys.stderr)
+        return 2
     if args.command is None:
         from .tui import run_tui
 
-        run_tui(args.database)
+        run_tui(args.database, runtime_policy)
         return 0
     if args.command == "doctor":
         checks = run_diagnostics(
@@ -92,7 +116,11 @@ def main(argv: list[str] | None = None) -> int:
         except ImportError:
             print("Error: install VocalSieve with the 'api' extra", file=sys.stderr)
             return 1
-        app = create_app(args.database, session_token=os.environ.get("VOCALSIEVE_SESSION_TOKEN"))
+        app = create_app(
+            args.database,
+            session_token=os.environ.get("VOCALSIEVE_SESSION_TOKEN"),
+            runtime_policy=runtime_policy,
+        )
         container_mode = os.environ.get("VOCALSIEVE_CONTAINER") == "1"
         host = "0.0.0.0" if container_mode else "127.0.0.1"
         print(f"VocalSieve API: http://127.0.0.1:{args.port}")
@@ -100,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
         uvicorn.run(app, host=host, port=args.port, log_level="info")
         return 0
 
-    service = VocalSieveService(args.database)
+    service = VocalSieveService(args.database, runtime_policy)
     try:
         if args.command == "jobs":
             jobs = service.list_jobs(args.limit)
@@ -164,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         print("\nCancelled by user.", file=sys.stderr)
         return 130
     except Exception as exc:
+        logger.exception("Command failed")
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     finally:

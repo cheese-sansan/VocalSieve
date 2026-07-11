@@ -27,3 +27,9 @@ Every export keeps the row-oriented `vocalsieve-report.csv` and
 `vocalsieve-report.json` formats and adds `vocalsieve-summary.json`. Run
 `vocalsieve report JOB_ID` for the same aggregate explanation without
 re-exporting audio, or add `--json` for machine-readable output.
+
+For completed jobs, an operator may set `review_decision` to `include` or
+`exclude`, or clear it back to automatic behavior. `effective_selected` applies
+that decision without changing the original pipeline status. Re-export removes
+only stale files previously managed by the same job and preserves unknown files
+in the output directory.

@@ -12,8 +12,9 @@ class FakeService:
     jobs: ClassVar[list] = []
     error: Exception | None = None
 
-    def __init__(self, database=None):
+    def __init__(self, database=None, runtime_policy=None):
         self.database = database
+        self.runtime_policy = runtime_policy
         self.closed = False
 
     def close(self):
@@ -121,16 +122,26 @@ def test_cli_error_and_tui_paths(monkeypatch, tmp_path: Path, capsys):
     assert "bad config" in capsys.readouterr().err
 
     called = []
-    monkeypatch.setattr("vocalsieve.tui.run_tui", lambda database: called.append(database))
+    monkeypatch.setattr(
+        "vocalsieve.tui.run_tui", lambda database, runtime_policy: called.append(database)
+    )
     assert cli.main([]) == 0
     assert called == [None]
 
 
 def test_cli_serve_is_loopback_only(monkeypatch, capsys):
     app = SimpleNamespace(state=SimpleNamespace(session_token="secret"))
-    monkeypatch.setattr("vocalsieve.api.create_app", lambda database, session_token=None: app)
+    monkeypatch.setattr(
+        "vocalsieve.api.create_app",
+        lambda database, session_token=None, runtime_policy=None: app,
+    )
     calls = []
     monkeypatch.setattr("uvicorn.run", lambda app, **kwargs: calls.append(kwargs))
     assert cli.main(["serve", "--port", "9000"]) == 0
     assert calls == [{"host": "127.0.0.1", "port": 9000, "log_level": "info"}]
     assert "secret" in capsys.readouterr().out
+
+
+def test_cli_rejects_invalid_runtime_policy(capsys):
+    assert cli.main(["--max-active-jobs", "0", "jobs"]) == 2
+    assert "invalid runtime policy" in capsys.readouterr().err

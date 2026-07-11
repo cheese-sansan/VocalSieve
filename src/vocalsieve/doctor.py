@@ -14,6 +14,7 @@ from pathlib import Path
 
 from .database import default_database_path
 from .domain import PipelineConfig
+from .logging_config import default_log_path
 from .runtime import configure_runtime, find_ffmpeg
 from .transcription import FasterWhisperTranscriber
 
@@ -28,6 +29,24 @@ class Check:
     ok: bool
     detail: str
     required: bool = True
+    code: str = ""
+    severity: str = ""
+    action: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.code:
+            normalized = "_".join(self.name.casefold().replace("-", " ").split())
+            object.__setattr__(self, "code", normalized)
+        if not self.severity:
+            severity = "ok" if self.ok else ("error" if self.required else "warning")
+            object.__setattr__(self, "severity", severity)
+        if not self.action:
+            action = (
+                "No action required."
+                if self.ok
+                else "Review the diagnostic detail and referenced documentation."
+            )
+            object.__setattr__(self, "action", action)
 
 
 def _ffmpeg_path() -> str | None:
@@ -63,15 +82,30 @@ def _writable_path_check(name: str, target: Path) -> Check:
 
 def _ffmpeg_check(ffmpeg: str | None) -> Check:
     if ffmpeg is None:
-        return Check("FFmpeg", False, "not found; see docs/FFMPEG.md")
+        return Check(
+            "FFmpeg",
+            False,
+            "not found; see docs/FFMPEG.md",
+            action="Install FFmpeg or use the Windows portable package that includes it.",
+        )
     try:
         completed = subprocess.run(
             [ffmpeg, "-version"], capture_output=True, text=True, timeout=5, check=False
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
-        return Check("FFmpeg", False, f"not executable: {exc}")
+        return Check(
+            "FFmpeg",
+            False,
+            f"not executable: {exc}",
+            action="Replace the configured FFmpeg executable and run doctor again.",
+        )
     if completed.returncode != 0:
-        return Check("FFmpeg", False, f"exited with code {completed.returncode}")
+        return Check(
+            "FFmpeg",
+            False,
+            f"exited with code {completed.returncode}",
+            action="Verify the FFmpeg installation and PATH, then run doctor again.",
+        )
     version = completed.stdout.splitlines()[0] if completed.stdout else "available"
     return Check("FFmpeg", True, f"{ffmpeg} ({version})")
 
@@ -110,6 +144,7 @@ def run_diagnostics(
         Check("SQLite", True, sqlite3.sqlite_version),
         _writable_path_check("Model cache", _model_cache_path()),
         _writable_path_check("Database directory", default_database_path().parent),
+        _writable_path_check("Log directory", default_log_path().parent),
     ]
     if output_path is not None:
         checks.append(_writable_path_check("Output directory", Path(output_path)))
@@ -123,6 +158,11 @@ def run_diagnostics(
                 bool(compute_types),
                 ", ".join(sorted(compute_types)),
                 required=False,
+                action=(
+                    "No action required."
+                    if compute_types
+                    else "Install the CUDA 12 and cuDNN 9 runtimes described in docs/CUDA.md."
+                ),
             )
         )
     except Exception as exc:
@@ -132,6 +172,7 @@ def run_diagnostics(
                 False,
                 f"unavailable: {exc}; see docs/CUDA.md",
                 required=False,
+                action="Install the CUDA 12 and cuDNN 9 runtimes described in docs/CUDA.md.",
             )
         )
     checks.extend(_windows_cuda_libraries())
@@ -156,5 +197,12 @@ def run_diagnostics(
                 )
             )
         except Exception as exc:
-            checks.append(Check("Inference probe", False, str(exc)))
+            checks.append(
+                Check(
+                    "Inference probe",
+                    False,
+                    str(exc),
+                    action="Check model download access and run doctor with --device cpu.",
+                )
+            )
     return checks

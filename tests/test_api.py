@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from vocalsieve.api import create_app
+from vocalsieve.domain import FileStatus, JobStatus, PipelineConfig, RuntimePolicy, ScannedFile
 
 
 def _payload(source: Path, output: Path) -> dict:
@@ -30,9 +31,13 @@ def test_api_requires_token_for_writes_and_exposes_openapi(tmp_path: Path):
             client.get("/api/v1/models", headers={"X-VocalSieve-Token": "test-token"}).status_code
             == 200
         )
+        runtime = client.get("/api/v1/runtime", headers={"X-VocalSieve-Token": "test-token"}).json()
+        assert runtime["max_active_jobs"] == 2
         assert (
             client.post("/api/v1/jobs", json=_payload(source, tmp_path / "out")).status_code == 401
         )
+        unauthorized = client.get("/api/v1/runtime")
+        assert unauthorized.json()["error"]["code"] == "invalid_session_token"
         schema = client.get("/openapi.json").json()
         assert "/api/v1/jobs" in schema["paths"]
 
@@ -123,6 +128,14 @@ def test_api_maps_validation_not_found_and_state_errors(tmp_path: Path):
             headers=headers,
         )
         assert invalid.status_code == 422
+        assert invalid.json()["error"]["code"] == "invalid_request"
+        malformed = client.post(
+            "/api/v1/jobs",
+            json={"source_dir": str(tmp_path)},
+            headers=headers,
+        )
+        assert malformed.status_code == 422
+        assert malformed.json()["error"]["code"] == "invalid_request"
         assert client.get("/api/v1/jobs/missing", headers=headers).status_code == 404
         assert client.get("/api/v1/jobs/missing/results", headers=headers).status_code == 404
         assert client.post("/api/v1/jobs/missing/export", headers=headers).status_code == 404
@@ -145,9 +158,13 @@ def test_api_maps_validation_not_found_and_state_errors(tmp_path: Path):
 def test_api_rejects_a_second_active_job(tmp_path: Path, monkeypatch):
     source = tmp_path / "source"
     source.mkdir()
-    app = create_app(tmp_path / "state.db", session_token="test-token")
+    app = create_app(
+        tmp_path / "state.db",
+        session_token="test-token",
+        runtime_policy=RuntimePolicy(max_active_jobs=1, max_cuda_jobs=1),
+    )
     release = threading.Event()
-    monkeypatch.setattr(app.state.service, "run_job", lambda *_: release.wait(5))
+    monkeypatch.setattr(app.state.service, "run_reserved_job", lambda *_: release.wait(5))
     headers = {"X-VocalSieve-Token": "test-token"}
     with TestClient(app) as client:
         first = client.post(
@@ -158,4 +175,33 @@ def test_api_rejects_a_second_active_job(tmp_path: Path, monkeypatch):
             "/api/v1/jobs", json=_payload(source, tmp_path / "two"), headers=headers
         )
         assert second.status_code == 409
+        assert second.json()["error"]["code"] == "capacity_exceeded"
         release.set()
+
+
+def test_api_reviews_completed_result(tmp_path: Path):
+    source = tmp_path / "source"
+    source.mkdir()
+    audio = source / "a.wav"
+    audio.write_bytes(b"audio")
+    app = create_app(tmp_path / "state.db", session_token="test-token")
+    service = app.state.service
+    job = service.create_job(PipelineConfig(str(source), str(tmp_path / "out")))
+    stat = audio.stat()
+    service.database.upsert_scanned_file(
+        job.id,
+        ScannedFile("a.wav", audio, stat.st_size, stat.st_mtime_ns),
+        job.config.cache_key,
+    )
+    service.database.update_file(job.id, "a.wav", status=FileStatus.SELECTED)
+    service.database.set_job_state(job.id, JobStatus.COMPLETED)
+    headers = {"X-VocalSieve-Token": "test-token"}
+    with TestClient(app) as client:
+        response = client.patch(
+            f"/api/v1/jobs/{job.id}/results/review",
+            json={"relative_path": "a.wav", "decision": "exclude", "note": "reviewed"},
+            headers=headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["effective_selected"] is False
+        assert response.json()["review_decision"] == "exclude"

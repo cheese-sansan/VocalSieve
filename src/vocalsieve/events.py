@@ -17,6 +17,7 @@ class EventType(StrEnum):
     ERROR = "error"
     CANCELLED = "cancelled"
     JOB_COMPLETED = "job_completed"
+    REVIEW_CHANGED = "review_changed"
 
 
 @dataclass(frozen=True, slots=True)

@@ -27,7 +27,38 @@ Invoke-RestMethod -Method Post `
 ```
 
 The versioned surface is `/api/v1`: health, doctor, models, job lifecycle,
-results, export, and job events. See `openapi.json` for exact schemas.
+runtime capacity, results, review, export, and job events. See `openapi.json`
+for exact schemas.
+
+Runtime capacity is resource-aware and does not create a queue:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8765/api/v1/runtime -Headers $headers
+```
+
+The default is two active jobs and one CUDA job. TUI, API, SDK, and CLI processes
+using the same SQLite database coordinate through database-backed resource leases.
+Conflicting output paths and exhausted capacity return HTTP 409 without leaving a
+new pending job.
+
+Review a result after its job completes:
+
+```powershell
+$review = @{
+  relative_path = "speaker/a.wav"
+  decision = "exclude"
+  note = "manual listening check"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Method Patch `
+  http://127.0.0.1:8765/api/v1/jobs/JOB_ID/results/review `
+  -Headers $headers -ContentType application/json -Body $review
+```
+
+`decision` is `include`, `exclude`, or `automatic`. Automated status is retained;
+the review changes only `effective_selected` and is recorded as an audit event.
+Expected API failures use the stable envelope
+`{"error":{"code":"...","message":"...","action":"...","retryable":false}}`.
 
 WebSockets use:
 
