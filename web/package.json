@@ -10,7 +10,7 @@
     "licenses": "node ../scripts/generate_node_licenses.mjs"
   },
   "dependencies": {
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^1.24.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
