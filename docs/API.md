@@ -50,13 +50,27 @@ $review = @{
   note = "manual listening check"
 } | ConvertTo-Json
 
-Invoke-RestMethod -Method Patch `
+Invoke-RestMethod -Method Post `
   http://127.0.0.1:8765/api/v1/jobs/JOB_ID/results/review `
   -Headers $headers -ContentType application/json -Body $review
 ```
 
 `decision` is `include`, `exclude`, or `automatic`. Automated status is retained;
 the review changes only `effective_selected` and is recorded as an audit event.
+The earlier `PATCH` form remains available as a deprecated compatibility alias.
+
+Read the schema v2 aggregate report without exporting again:
+
+```powershell
+Invoke-RestMethod `
+  http://127.0.0.1:8765/api/v1/jobs/JOB_ID/report `
+  -Headers $headers
+```
+
+The report separates automatic selections, manual includes, manual excludes,
+and the final effective selection count. It also records rejection counts,
+thresholds, errors, and the effective transcription backend.
+
 Expected API failures use the stable envelope
 `{"error":{"code":"...","message":"...","action":"...","retryable":false}}`.
 
@@ -68,5 +82,7 @@ ws://127.0.0.1:8765/api/v1/jobs/JOB_ID/events?token=TOKEN&after=EVENT_ID
 
 Clients must send `Origin: http://127.0.0.1:5173` or
 `Origin: http://localhost:5173`. `after` replays persisted events after the
-specified event id. The browser skeleton reads its token from
-`VITE_VOCALSIEVE_TOKEN` and never imports Python internals.
+specified event id. The experimental browser workspace reads its token from
+`VITE_VOCALSIEVE_TOKEN`, consumes only generated OpenAPI types, and supports job
+creation, cancel/resume, results, reporting, review, and re-export. It remains a
+development preview rather than a Windows portable guarantee.

@@ -9,11 +9,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Auditable manual include/exclude review in the TUI, SDK, and local API.
 - Runtime capacity and structured actionable API/diagnostic responses.
 - Transactional schema v3 migration with a pre-migration SQLite backup.
+- Experimental local Web workflow for job creation, lifecycle control, review,
+  reporting, and re-export through the versioned API.
 
 ### Changed
 - Raised the default runtime capacity to two active jobs while limiting CUDA to one.
 - Re-export now reconciles only files previously managed by the same job.
-- Deferred the experimental Web workflow until after v1.0 while retaining contract checks.
+- Split the local API adapter into focused assembly, authentication, runtime,
+  job, event, and worker modules without changing the `/api/v1` boundary.
 
 ## [0.9.0-rc.1] - 2026-06-22
 

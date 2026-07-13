@@ -107,6 +107,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs/{job_id}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Report */
+        get: operations["report_api_v1_jobs__job_id__report_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}/results": {
         parameters: {
             query?: never;
@@ -133,12 +150,16 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post?: never;
+        /** Review Result */
+        post: operations["review_result_api_v1_jobs__job_id__results_review_post"];
         delete?: never;
         options?: never;
         head?: never;
-        /** Review Result */
-        patch: operations["review_result_api_v1_jobs__job_id__results_review_patch"];
+        /**
+         * Review Result Legacy
+         * @deprecated
+         */
+        patch: operations["review_result_legacy_api_v1_jobs__job_id__results_review_patch"];
         trace?: never;
     };
     "/api/v1/jobs/{job_id}/resume": {
@@ -196,6 +217,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** BackendSummary */
+        BackendSummary: {
+            /** Effective Compute Type */
+            effective_compute_type: string;
+            /** Effective Device */
+            effective_device: string;
+            /** Fallback */
+            fallback: boolean;
+            /** Fallback Reason */
+            fallback_reason: string | null;
+            /** Requested Device */
+            requested_device: string;
+        };
         /** CheckResponse */
         CheckResponse: {
             /** Action */
@@ -290,6 +324,41 @@ export interface components {
              */
             top_n: number;
         };
+        /** ConfigResponse */
+        ConfigResponse: {
+            /** Compute Type */
+            compute_type: string;
+            /** Device */
+            device: string;
+            /** Ideal Text Length */
+            ideal_text_length: number;
+            /** Language */
+            language: string;
+            /** Max Text Length */
+            max_text_length: number;
+            /** Min Centroid */
+            min_centroid: number;
+            /** Min Duration */
+            min_duration: number;
+            /** Min Rms */
+            min_rms: number;
+            /** Min Text Length */
+            min_text_length: number;
+            /** Model Size */
+            model_size: string;
+            /** No Speech Threshold */
+            no_speech_threshold: number;
+            /** Output Dir */
+            output_dir: string;
+            /** Physics Workers */
+            physics_workers: number;
+            /** Repeat Char Threshold */
+            repeat_char_threshold: number;
+            /** Source Dir */
+            source_dir: string;
+            /** Top N */
+            top_n: number;
+        };
         /** ErrorDetail */
         ErrorDetail: {
             /** Action */
@@ -307,6 +376,25 @@ export interface components {
         /** ErrorResponse */
         ErrorResponse: {
             error: components["schemas"]["ErrorDetail"];
+        };
+        /** EventResponse */
+        EventResponse: {
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            };
+            /** Id */
+            id: number;
+            /** Job Id */
+            job_id: string;
+            /** Message */
+            message: string;
+            /** Stage */
+            stage: string | null;
+            /** Timestamp */
+            timestamp: string;
+            /** Type */
+            type: string;
         };
         /** ExportResponse */
         ExportResponse: {
@@ -369,10 +457,7 @@ export interface components {
         };
         /** JobResponse */
         JobResponse: {
-            /** Config */
-            config: {
-                [key: string]: unknown;
-            };
+            config: components["schemas"]["ConfigResponse"];
             /** Created At */
             created_at: string;
             /** Current Stage */
@@ -394,6 +479,52 @@ export interface components {
             id: string;
             /** Label */
             label: string;
+        };
+        /** RejectionSummary */
+        RejectionSummary: {
+            /** Config Field */
+            config_field: string | null;
+            /** Count */
+            count: number;
+            /** Description */
+            description: string;
+            /** Title */
+            title: string;
+        };
+        /** ReportResponse */
+        ReportResponse: {
+            /** Automatic Selected Count */
+            automatic_selected_count: number;
+            /** Average Duration */
+            average_duration: number | null;
+            backend: components["schemas"]["BackendSummary"];
+            /** Candidate Count */
+            candidate_count: number;
+            /** Candidate Pass Rate */
+            candidate_pass_rate: number;
+            /** Error Count */
+            error_count: number;
+            /** Generated At */
+            generated_at: string;
+            /** Job Id */
+            job_id: string;
+            /** Manual Exclude Count */
+            manual_exclude_count: number;
+            /** Manual Include Count */
+            manual_include_count: number;
+            /** Rejected Count */
+            rejected_count: number;
+            /** Rejection Counts */
+            rejection_counts: {
+                [key: string]: components["schemas"]["RejectionSummary"];
+            };
+            /** Schema Version */
+            schema_version: number;
+            /** Selected Count */
+            selected_count: number;
+            thresholds: components["schemas"]["ThresholdSummary"];
+            /** Total Scanned */
+            total_scanned: number;
         };
         /** ResourceLeaseResponse */
         ResourceLeaseResponse: {
@@ -425,6 +556,25 @@ export interface components {
             max_active_jobs: number;
             /** Max Cuda Jobs */
             max_cuda_jobs: number;
+        };
+        /** ThresholdSummary */
+        ThresholdSummary: {
+            /** Max Text Length */
+            max_text_length: number;
+            /** Min Centroid */
+            min_centroid: number;
+            /** Min Duration */
+            min_duration: number;
+            /** Min Rms */
+            min_rms: number;
+            /** Min Text Length */
+            min_text_length: number;
+            /** No Speech Threshold */
+            no_speech_threshold: number;
+            /** Repeat Char Threshold */
+            repeat_char_threshold: number;
+            /** Top N */
+            top_n: number;
         };
     };
     responses: never;
@@ -918,6 +1068,75 @@ export interface operations {
             };
         };
     };
+    report_api_v1_jobs__job_id__report_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-vocalsieve-token"?: string;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportResponse"];
+                };
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description State or capacity conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Backend unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     results_api_v1_jobs__job_id__results_get: {
         parameters: {
             query?: {
@@ -991,7 +1210,80 @@ export interface operations {
             };
         };
     };
-    review_result_api_v1_jobs__job_id__results_review_patch: {
+    review_result_api_v1_jobs__job_id__results_review_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-vocalsieve-token"?: string;
+            };
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileResultResponse"];
+                };
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Resource not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description State or capacity conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description Backend unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    review_result_legacy_api_v1_jobs__job_id__results_review_patch: {
         parameters: {
             query?: never;
             header?: {

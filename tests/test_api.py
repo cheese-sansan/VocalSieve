@@ -40,6 +40,10 @@ def test_api_requires_token_for_writes_and_exposes_openapi(tmp_path: Path):
         assert unauthorized.json()["error"]["code"] == "invalid_session_token"
         schema = client.get("/openapi.json").json()
         assert "/api/v1/jobs" in schema["paths"]
+        assert schema["paths"]["/api/v1/jobs/{job_id}/results/review"]["patch"]["deprecated"]
+        assert "post" in schema["paths"]["/api/v1/jobs/{job_id}/results/review"]
+        assert "ReportResponse" in schema["components"]["schemas"]
+        assert "EventResponse" in schema["components"]["schemas"]
 
 
 def test_api_runs_empty_job_and_replays_events(tmp_path: Path):
@@ -60,6 +64,11 @@ def test_api_runs_empty_job_and_replays_events(tmp_path: Path):
                 break
         assert job["status"] == "completed"
         assert client.get(f"/api/v1/jobs/{job_id}/results", headers=headers).json() == []
+        report = client.get(f"/api/v1/jobs/{job_id}/report", headers=headers).json()
+        assert report["schema_version"] == 2
+        assert report["automatic_selected_count"] == 0
+        assert report["manual_include_count"] == 0
+        assert report["manual_exclude_count"] == 0
         exported = client.post(f"/api/v1/jobs/{job_id}/export", headers=headers)
         assert exported.json()["count"] == 0
 
@@ -138,6 +147,7 @@ def test_api_maps_validation_not_found_and_state_errors(tmp_path: Path):
         assert malformed.json()["error"]["code"] == "invalid_request"
         assert client.get("/api/v1/jobs/missing", headers=headers).status_code == 404
         assert client.get("/api/v1/jobs/missing/results", headers=headers).status_code == 404
+        assert client.get("/api/v1/jobs/missing/report", headers=headers).status_code == 404
         assert client.post("/api/v1/jobs/missing/export", headers=headers).status_code == 404
         assert client.post("/api/v1/jobs/missing/resume", headers=headers).status_code == 404
         assert client.post("/api/v1/jobs/missing/cancel", headers=headers).status_code == 404
@@ -197,7 +207,7 @@ def test_api_reviews_completed_result(tmp_path: Path):
     service.database.set_job_state(job.id, JobStatus.COMPLETED)
     headers = {"X-VocalSieve-Token": "test-token"}
     with TestClient(app) as client:
-        response = client.patch(
+        response = client.post(
             f"/api/v1/jobs/{job.id}/results/review",
             json={"relative_path": "a.wav", "decision": "exclude", "note": "reviewed"},
             headers=headers,
@@ -205,3 +215,17 @@ def test_api_reviews_completed_result(tmp_path: Path):
         assert response.status_code == 200
         assert response.json()["effective_selected"] is False
         assert response.json()["review_decision"] == "exclude"
+        legacy = client.patch(
+            f"/api/v1/jobs/{job.id}/results/review",
+            json={"relative_path": "a.wav", "decision": "automatic"},
+            headers=headers,
+        )
+        assert legacy.status_code == 200
+        assert legacy.json()["effective_selected"] is True
+        assert legacy.json()["review_decision"] is None
+
+        report = client.get(f"/api/v1/jobs/{job.id}/report", headers=headers).json()
+        assert report["selected_count"] == 1
+        assert report["automatic_selected_count"] == 1
+        assert report["manual_include_count"] == 0
+        assert report["manual_exclude_count"] == 0
