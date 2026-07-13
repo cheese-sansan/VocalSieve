@@ -1,10 +1,13 @@
 VocalSieve for Windows
 ======================
 
+Local-first speech dataset curation for screening, reviewing, and exporting audio.
+
 Double-click VocalSieve.exe or Start-VocalSieve.cmd to open the terminal UI.
 No Python or uv installation is required.
 The portable package provides the CLI, TUI, and doctor command. Install the
 Python wheel or use a container for the local HTTP API.
+The experimental Web workspace is a developer preview and is not included.
 
 Command Prompt examples:
   VocalSieve.exe doctor

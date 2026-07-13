@@ -1,42 +1,74 @@
 # VocalSieve
 
+[简体中文](README.zh-CN.md)
+
 [![CI](https://github.com/cheese-sansan/VocalSieve/actions/workflows/ci.yml/badge.svg)](https://github.com/cheese-sansan/VocalSieve/actions/workflows/ci.yml)
 [![Security](https://github.com/cheese-sansan/VocalSieve/actions/workflows/security.yml/badge.svg)](https://github.com/cheese-sansan/VocalSieve/actions/workflows/security.yml)
 [![Release](https://img.shields.io/github/v/release/cheese-sansan/VocalSieve?include_prereleases)](https://github.com/cheese-sansan/VocalSieve/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-VocalSieve is a local-first audio corpus screening workbench. It scans a source
-directory without modifying it, analyzes audio, transcribes eligible files with
-`faster-whisper`, applies configurable rules, ranks the survivors, and exports
-the final selection while preserving relative paths.
+> Turn raw voice folders into reviewable, reproducible speech datasets — locally.
 
-Jobs, metrics, transcripts, rejection reasons, events, and resume state are
-stored in SQLite. The first TUI launch asks for English or Simplified Chinese;
-the choice is remembered and can be changed later in Settings.
+VocalSieve screens, transcribes, ranks, reviews, and exports speech audio without
+uploading it. Point it at a source folder, keep that folder read-only, and get a
+curated dataset with traceable decisions instead of an opaque pile of copied files.
 
-![VocalSieve terminal workbench](docs/images/tui.svg)
+## From folder to dataset
 
-The experimental React/Vite client consumes only the versioned local API contract.
-It remains a developer preview and is not part of the v1.0 end-user release gate:
+1. **Scan safely.** Discover supported audio while leaving the source tree untouched.
+2. **Measure first.** Reject unusable files with duration, energy, and spectral rules.
+3. **Transcribe locally.** Run `faster-whisper` only on eligible audio and record backend fallbacks.
+4. **Rank and review.** Select the strongest candidates, then manually include or exclude edge cases.
+5. **Export reproducibly.** Preserve relative paths and write CSV, JSON, summary, events, and job state.
 
-![VocalSieve web API skeleton](docs/images/web-dashboard.png)
+Every run is stored in SQLite with its configuration, progress, transcripts,
+rejection reasons, review decisions, and resume state. The final export is therefore
+inspectable, repeatable, and safe to revise.
 
-## Supported platforms
+![VocalSieve terminal interface](docs/images/tui.svg)
 
-- Windows 10/11: native CLI and Textual TUI; CPU is ready, CUDA requires the
-  CUDA 12 and cuDNN 9 runtime described in [the CUDA guide](docs/CUDA.md).
-- Linux: CPU and NVIDIA GPU containers.
-- macOS: experimental and not part of the release gate.
+The React/Vite workspace uses the same versioned local API for job creation,
+cancel/resume, results, reports, review, events, and re-export. It is an experimental
+development preview, not part of the Windows portable support promise.
 
-Python 3.11 or 3.12 is required. FFmpeg must be available on `PATH` for native
-use; see [FFMPEG.md](docs/FFMPEG.md). Model weights are downloaded on first use
-and are never committed to the repository or baked into images.
+![VocalSieve experimental web workspace](docs/images/web-dashboard.png)
 
-## Installation status
+## Why local-first
 
-VocalSieve `0.9.0-rc.2` is the current release candidate, but it has not been
-published yet. Until its signed GitHub Release is visible and smoke-tested,
-there is no official rc.2 download.
+- Source audio and transcripts stay on the machine you control.
+- Native API access is restricted to `127.0.0.1` and protected by a session token.
+- Source and output paths cannot overlap; exports never modify the source corpus.
+- Model weights are downloaded on first use and are not committed or baked into images.
+- CPU, CUDA, and fallback details are recorded in diagnostics, events, and reports.
+
+## Project status
+
+The latest published prerelease is
+[`v0.9.0-rc.1`](https://github.com/cheese-sansan/VocalSieve/releases/tag/v0.9.0-rc.1).
+The source tree is preparing `0.9.0-rc.2`, but rc.2 has not been published and has
+no official download yet. CI artifacts and locally built archives are not releases.
+
+| Platform | Supported path |
+| --- | --- |
+| Windows 10/11 | Native CLI and bilingual TUI; CPU ready, CUDA 12 + cuDNN 9 documented |
+| Linux | CPU and NVIDIA GPU containers |
+| macOS | Experimental; outside the release gate |
+
+Python 3.11 or 3.12 is required for source installs. Native use requires FFmpeg on
+`PATH`; see [FFMPEG.md](docs/FFMPEG.md) and [CUDA.md](docs/CUDA.md).
+
+## Quick start
+
+### Windows portable
+
+Use only assets attached to a visible GitHub Release. Download
+`VocalSieve-Windows-x64.zip`, verify `SHA256SUMS`, extract to a new directory, and
+launch `VocalSieve.exe` or `Start-VocalSieve.cmd`. The portable archive needs neither
+Python nor uv, and supports the CLI, TUI, and `doctor` command.
+
+Prerelease archives use a disclosed self-signed project certificate rather than a
+commercially trusted certificate. SBOM, certificate fingerprint, checksums, and
+FFmpeg GPL source provenance are published beside the archive.
 
 ### Developer install with uv
 
@@ -46,31 +78,6 @@ cd VocalSieve
 uv sync --extra tui
 uv run vocalsieve doctor
 uv run vocalsieve
-```
-
-### Non-developer install
-
-After the `0.9.0-rc.2` GitHub prerelease is published and smoke-tested,
-download `VocalSieve-Windows-x64.zip`, verify it against `SHA256SUMS`, and
-extract it before launching `VocalSieve.exe` or `Start-VocalSieve.cmd`. The
-archive is Authenticode-signed and includes an SBOM and FFmpeg source
-provenance. This prerelease uses a
-disclosed self-signed project certificate, not a publicly trusted commercial
-certificate. Do not treat CI artifacts or locally produced archives as
-official releases.
-
-The archive does not require Python or uv and includes a separate GPLv3 FFmpeg
-executable. Model weights are not bundled; the selected model downloads on
-first use.
-
-From a checked-out repository, `Start-VocalSieve.cmd` launches an existing
-virtual environment or falls back to `uv run vocalsieve`.
-
-For development, API, and all tests:
-
-```powershell
-uv sync --all-extras
-uv run pytest --cov=vocalsieve
 ```
 
 ### Developer install with pip
@@ -84,30 +91,32 @@ py -3.12 -m venv .venv
 
 Install `.[api]` for the local HTTP API or `.[tui,api,dev]` for development.
 
-## CLI
+## Screen, review, and export
 
 ```powershell
 vocalsieve run "E:\data\raw" "E:\data\screened" --model small --device auto --top-n 1200
-vocalsieve doctor
-vocalsieve doctor --deep --device cpu --model tiny
 vocalsieve jobs
 vocalsieve resume JOB_ID
-vocalsieve export JOB_ID
 vocalsieve report JOB_ID
-vocalsieve report JOB_ID --json
-vocalsieve --max-active-jobs 2 --max-cuda-jobs 1 serve
+vocalsieve export JOB_ID
 ```
 
-Quoted Windows paths are accepted. `top-n` is a maximum after all acoustic and
-transcription rules run, not a promise that the output will contain that many
-files. Results are written to `OUTPUT/final_selected/` with complete CSV and
-JSON reports beside it. A separate `vocalsieve-summary.json` explains aggregate
-pass rates and rejection counts; see [FILTERING.md](docs/FILTERING.md).
-Completed results can be manually included or excluded in the TUI. The automated
-status is preserved, every review is audited, and later exports use the effective
-reviewed selection.
+`top-n` is a maximum after all rules run, not a guaranteed output count. Selected
+audio is written under `OUTPUT/final_selected/`. The output root also receives a
+row-oriented CSV report, JSON report, and schema v2 aggregate summary.
 
-## Python SDK
+After a job completes, the TUI, SDK, or local API can mark any result as manually
+included, manually excluded, or automatic. The original pipeline status remains
+unchanged, every review is audited, and re-export reconciles only files previously
+managed by that job.
+
+## Interfaces
+
+- **TUI:** run `vocalsieve`; the first launch asks for English or Simplified Chinese.
+- **CLI:** use `run`, `jobs`, `resume`, `export`, `report`, `doctor`, and `serve` for automation.
+- **Python SDK:** import the versioned public surface from `vocalsieve`.
+- **Local API:** start `vocalsieve serve`; jobs, paths, results, transcripts, and events require the printed token.
+- **Experimental Web:** run the Vite client against the local API; it consumes generated OpenAPI types only.
 
 ```python
 from vocalsieve import PipelineConfig, VocalSieveClient
@@ -125,54 +134,73 @@ with VocalSieveClient("vocalsieve.db") as client:
     results = client.query_results(completed.id)
 ```
 
-The default runtime permits two active jobs while reserving at most one CUDA job.
-Processes sharing the same SQLite database coordinate those limits; submissions
-that exceed capacity or use conflicting output paths fail immediately rather than queueing.
+The default runtime permits two active jobs and at most one CUDA job. Processes
+sharing a SQLite database coordinate those limits and reject conflicting paths or
+exhausted capacity instead of silently queueing work.
 
-The public SDK surface is exported from `vocalsieve`; database rows and adapter
-implementations are private. See [API.md](docs/API.md) for the HTTP contract.
+### Experimental Web workspace
 
-## Docker
+```powershell
+uv sync --extra api
+uv run vocalsieve serve
+
+# In another terminal, use the token printed above:
+$env:VITE_VOCALSIEVE_TOKEN = "the-local-session-token"
+npm --prefix web ci
+npm --prefix web run dev
+```
+
+Open `http://127.0.0.1:5173`. The browser is allowed only from the two documented
+localhost origins and does not receive direct filesystem access.
+
+## Containers
 
 ```powershell
 $env:VOCALSIEVE_SESSION_TOKEN = "replace-with-a-long-random-value"
 docker compose --profile cpu up --build
 ```
 
-Use `--profile gpu` on an NVIDIA Container Toolkit host. The service is exposed
-only as `127.0.0.1:8765`; input is read-only at `/data/input`, output is
-`/data/output`, state is `/state`, and model cache is `/models`. See
-[DOCKER.md](docs/DOCKER.md) for requests and regional mirror builds.
+Use `--profile gpu` with NVIDIA Container Toolkit. The service binds to
+`127.0.0.1:8765`; `/data/input` is read-only, while output, state, and model cache
+use separate mounts. See [DOCKER.md](docs/DOCKER.md).
 
-## Local API security
-
-Start the native API with `vocalsieve serve`. It binds only to `127.0.0.1` and
-prints a fresh session token. `/api/v1/health` is public; every endpoint that
-can expose jobs, paths, results, transcripts, or events requires the token.
-WebSockets additionally require an allowed localhost `Origin`.
-
-The Windows portable package remains focused on the CLI, TUI, and `doctor` command.
-Install the Python wheel or use a container when the local HTTP API is required.
-
-The checked-in [OpenAPI contract](openapi.json) generates the TypeScript client
-types used by the React/Vite skeleton in `web/`.
-
-## Development and release checks
+## Development
 
 ```powershell
-ruff check src tests
-pyright
-pytest --cov=vocalsieve
-python -m build
+uv sync --all-extras
+uv run pre-commit run --all-files
+uv run pyright
+uv run pytest --cov=vocalsieve
+uv run python scripts/export_openapi.py --check
 npm --prefix web ci
 npm --prefix web run build
-pip-audit --skip-editable
-scripts\release_gate.ps1 -BuildPortable -CorpusPath "E:\data\release-corpus"
 ```
 
-The private-corpus 1k/10k/50k procedure and publication boundaries are documented
-in [BENCHMARK.md](docs/BENCHMARK.md).
+The private-corpus procedure and publication boundary are documented in
+[BENCHMARK.md](docs/BENCHMARK.md). This README does not treat a local benchmark as
+a release gate or public release.
 
-Contributions are welcome under the [MIT License](LICENSE). Read
-[CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the
-[third-party notices](THIRD_PARTY_NOTICES.md) before publishing changes.
+## Stewardship and development assistance
+
+Project direction, decisions, review, and releases are maintained by Hueter
+([@cheese-sansan](https://github.com/cheese-sansan)). Development is assisted by
+ChatGPT Codex. All AI-assisted changes are reviewed and accepted by the maintainer.
+
+Dependency updates are implemented on maintainer/Codex branches after the weekly
+security workflow, a GitHub vulnerability alert, or release preparation identifies
+a need. Automated Dependabot update PRs are intentionally disabled.
+
+## Documentation
+
+- [Filtering and rejection reasons](docs/FILTERING.md)
+- [Local API and security](docs/API.md)
+- [CUDA setup](docs/CUDA.md)
+- [FFmpeg setup and provenance](docs/FFMPEG.md)
+- [Container operation](docs/DOCKER.md)
+- [Dependency policy](docs/DEPENDENCIES.md)
+- [Release process](docs/RELEASE.md)
+- [Security policy](SECURITY.md)
+- [Contributing](CONTRIBUTING.md)
+
+VocalSieve is released under the [MIT License](LICENSE). Third-party components
+remain covered by their own licenses in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

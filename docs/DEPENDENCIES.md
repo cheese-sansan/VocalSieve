@@ -21,7 +21,7 @@ notes, merge state, and full CI before acting.
 | #3 | plugin-react 4 to 6 | high | Defer to the coordinated web-toolchain branch. |
 | #5 | TypeScript 5 to 6 | high | Defer; current checks include failures. |
 | #9 | Vite 6 to 8 | high | Defer and upgrade through supported intermediate versions. |
-| #11 | lucide-react 0.x to 1.x | high | Defer and visually inspect the web skeleton separately. |
+| #11 | lucide-react 0.x to 1.x | high | Defer and visually inspect the experimental web workspace separately. |
 
 ## Required validation
 

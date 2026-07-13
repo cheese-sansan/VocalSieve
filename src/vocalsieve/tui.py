@@ -1,4 +1,4 @@
-"""Textual workbench with an English/Simplified Chinese interface."""
+"""Textual speech dataset curation with an English/Simplified Chinese interface."""
 
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ from .settings import load_language, save_language
 
 TEXT: dict[str, dict[str, str]] = {
     "en": {
-        "subtitle": "Audio corpus workbench",
+        "subtitle": "Local speech dataset curation",
         "tab_jobs": "Jobs",
         "tab_new": "New job",
         "tab_run": "Run",
@@ -106,7 +106,7 @@ TEXT: dict[str, dict[str, str]] = {
         "progress": "Progress {current}/{total}",
     },
     "zh": {
-        "subtitle": "音频语料工作台",
+        "subtitle": "本地语音数据集整理",
         "tab_jobs": "任务",
         "tab_new": "新建任务",
         "tab_run": "运行",
@@ -278,7 +278,7 @@ class JobFinished(Message):
 
 class VocalSieveApp(App):
     TITLE = "VocalSieve"
-    SUB_TITLE = "Audio corpus workbench"
+    SUB_TITLE = "Local speech dataset curation"
     CSS = """
     Screen { background: #0c0c0c; color: #f2f2f2; }
     Header { background: #171717; color: #ffffff; }

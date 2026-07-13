@@ -21,7 +21,8 @@ logger = logging.getLogger(__name__)
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="vocalsieve", description="Local-first audio corpus screening workbench"
+        prog="vocalsieve",
+        description="Local-first speech dataset curation for screening, reviewing, and exporting audio",
     )
     parser.add_argument("--database", help=argparse.SUPPRESS)
     parser.add_argument("--max-active-jobs", type=int)
