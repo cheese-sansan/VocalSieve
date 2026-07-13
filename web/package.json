@@ -1,0 +1,28 @@
+{
+  "name": "vocalsieve-web",
+  "private": true,
+  "version": "0.9.0-rc.2",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json && vite build",
+    "generate:api": "openapi-typescript ../openapi.json -o src/api/schema.d.ts",
+    "licenses": "node ../scripts/generate_node_licenses.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "openapi-typescript": "^7.6.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  },
+  "overrides": {
+    "js-yaml": "^4.2.0"
+  }
+}

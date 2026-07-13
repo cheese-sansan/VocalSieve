@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python: ["3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: python -m pip install ".[tui,api,dev]"
+      - run: pre-commit run --all-files
+      - run: python scripts/check_versions.py
+      - run: python scripts/export_openapi.py --check
+      - run: pyright
+      - run: pytest --cov=vocalsieve --cov-report=xml
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm audit --audit-level=high
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: python -m pip install ".[api]"
+      - run: npm ci
+        working-directory: web
+      - run: python scripts/export_openapi.py
+      - run: npm run generate:api
+        working-directory: web
+      - run: git diff --exit-code -- openapi.json web/src/api/schema.d.ts
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build
+      - run: python -m build
+      - run: python -m venv smoke && smoke/bin/pip install "dist/vocalsieve-"*.whl && smoke/bin/vocalsieve jobs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: python-dist
+          path: dist/*
+
+  windows-freeze:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ".[tui]" pyinstaller
+      - run: python -m PyInstaller packaging/VocalSieve.spec --noconfirm --clean --distpath dist/frozen --workpath build/frozen
+      - run: .\dist\frozen\VocalSieve\VocalSieve.exe jobs
+
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: cpu
+          load: true
+          push: false
+          tags: vocalsieve:ci
+      - run: docker run --rm vocalsieve:ci doctor

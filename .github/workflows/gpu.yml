@@ -1,0 +1,53 @@
+name: GPU release gate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vocalsieve-gpu-gate
+  cancel-in-progress: false
+
+jobs:
+  windows-and-docker:
+    runs-on: [self-hosted, Windows, X64, vocalsieve-gpu]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Prepare runner Python
+        shell: powershell
+        run: |
+          $python = "${{ vars.VOCALSIEVE_PYTHON_PATH }}"
+          if (-not (Test-Path -LiteralPath $python)) { throw "VOCALSIEVE_PYTHON_PATH is invalid" }
+          & $python --version
+          & $python -m pip install ".[tui,api]"
+          if ($LASTEXITCODE -ne 0) { throw "Python dependency installation failed" }
+      - name: Windows native CUDA inference
+        shell: powershell
+        run: |
+          & "${{ vars.VOCALSIEVE_PYTHON_PATH }}" -m vocalsieve doctor --deep --device cuda --model tiny
+          if ($LASTEXITCODE -ne 0) { throw "Native CUDA inference failed" }
+      - name: Ensure Docker Desktop is ready
+        shell: powershell
+        run: |
+          $deadline = (Get-Date).AddMinutes(5)
+          do {
+            docker info *> $null
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            Start-Sleep -Seconds 5
+          } while ((Get-Date) -lt $deadline)
+          throw "Docker Desktop did not become ready"
+      - name: Build Linux GPU image
+        shell: powershell
+        run: |
+          $base = "${{ vars.VOCALSIEVE_GPU_BASE }}"
+          if ($base) {
+            docker build --build-arg "GPU_BASE=$base" --target gpu -t vocalsieve:gpu-test .
+          } else {
+            docker build --target gpu -t vocalsieve:gpu-test .
+          }
+          if ($LASTEXITCODE -ne 0) { throw "GPU image build failed with exit code $LASTEXITCODE" }
+      - name: Linux container CUDA inference
+        run: docker run --rm --gpus all vocalsieve:gpu-test doctor --deep --device cuda --model tiny

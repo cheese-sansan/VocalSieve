@@ -1,0 +1,65 @@
+name: Signed Windows package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vocalsieve-windows-package
+  cancel-in-progress: false
+
+jobs:
+  package:
+    runs-on: [self-hosted, Windows, X64, vocalsieve-gpu]
+    timeout-minutes: 90
+    env:
+      WINDOWS_SIGNING_PFX_B64: ${{ secrets.WINDOWS_SIGNING_PFX_B64 }}
+      WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Prepare runner Python
+        shell: powershell
+        run: |
+          $python = "${{ vars.VOCALSIEVE_PYTHON_PATH }}"
+          if (-not (Test-Path -LiteralPath $python)) { throw "VOCALSIEVE_PYTHON_PATH is invalid" }
+          & $python --version
+          & $python -m pip install ".[tui,dev]"
+          if ($LASTEXITCODE -ne 0) { throw "Python dependency installation failed" }
+      - name: Build and sign portable package
+        shell: powershell
+        run: .\scripts\build_windows_portable.ps1 -Python "${{ vars.VOCALSIEVE_PYTHON_PATH }}" -FfmpegPath "${{ vars.VOCALSIEVE_FFMPEG_PATH }}" -FfmpegLicensePath "${{ vars.VOCALSIEVE_FFMPEG_LICENSE_PATH }}" -RequireSignature
+      - name: CUDA smoke test from frozen app
+        run: .\dist\windows\VocalSieve\VocalSieve.exe doctor --deep --device cuda --model tiny
+      - name: Fetch corresponding source materials
+        shell: powershell
+        run: .\scripts\fetch_ffmpeg_sources.ps1
+      - name: Generate Windows SBOM
+        shell: powershell
+        env:
+          SYFT_VERSION: "1.42.3"
+          SYFT_SHA256: "e1b9f4945aa64c2b34970bec617623d7f803d0661b48a50b966768b363322e2d"
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "syft-$env:SYFT_VERSION.zip"
+          $toolRoot = Join-Path $env:RUNNER_TEMP "syft-$env:SYFT_VERSION"
+          Invoke-WebRequest "https://github.com/anchore/syft/releases/download/v$env:SYFT_VERSION/syft_$($env:SYFT_VERSION)_windows_amd64.zip" -OutFile $archive -UseBasicParsing
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $env:SYFT_SHA256) { throw "Syft SHA256 mismatch: $actual" }
+          Expand-Archive $archive -DestinationPath $toolRoot -Force
+          & (Join-Path $toolRoot "syft.exe") "dir:dist/windows/VocalSieve" -o "spdx-json=dist/windows/VocalSieve-Windows-x64.spdx.json"
+          if ($LASTEXITCODE -ne 0) { throw "Syft failed with exit code $LASTEXITCODE" }
+      - name: Checksums
+        shell: powershell
+        run: Get-ChildItem dist/windows -File -Recurse | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($_.Path.Substring((Resolve-Path '.').Path.Length + 1).Replace('\','/'))" } | Set-Content dist/windows/SHA256SUMS-windows.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: signed-windows-package
+          path: |
+            dist/windows/VocalSieve-Windows-x64.zip
+            dist/windows/VocalSieve-Windows-x64.spdx.json
+            dist/windows/SHA256SUMS-windows.txt
+            dist/windows/VocalSieve-Prerelease-CodeSigning.cer
+            dist/windows/VocalSieve-Prerelease-CodeSigning.txt
+            dist/sources/*
+          retention-days: 14
