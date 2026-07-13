@@ -16,7 +16,7 @@ def test_tui_mounts_and_shows_english_navigation(tmp_path: Path):
             await pilot.click("#lang-en")
             await pilot.pause()
             assert app.title == "VocalSieve"
-            assert app.sub_title == "Audio corpus workbench"
+            assert app.sub_title == "Local speech dataset curation"
             assert app.query_one("#job-table") is not None
             assert "Python" in str(app.query_one("#doctor-output").render())
 
@@ -31,7 +31,7 @@ def test_tui_supports_simplified_chinese(tmp_path: Path):
             await pilot.click("#lang-zh")
             await pilot.pause()
             assert app.language == "zh"
-            assert app.sub_title == "音频语料工作台"
+            assert app.sub_title == "本地语音数据集整理"
             assert str(app.query_one("#create-job", Button).label) == "创建并运行"
             assert "源语料" in str(app.query_one("#label-source").render())
 
