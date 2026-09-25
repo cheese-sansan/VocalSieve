@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .domain import FileResult, Job, PipelineConfig
+from ..domain import FileResult, Job, PipelineConfig
 
 
 class ConfigRequest(BaseModel):

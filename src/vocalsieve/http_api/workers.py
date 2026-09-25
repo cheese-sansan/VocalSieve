@@ -6,9 +6,9 @@ import logging
 import threading
 from contextlib import suppress
 
-from .domain import JobStatus
-from .errors import JobNotFoundError, JobStateError
-from .service import VocalSieveService
+from ..domain import JobStatus
+from ..errors import JobNotFoundError, JobStateError
+from ..service import VocalSieveService
 
 logger = logging.getLogger(__name__)
 

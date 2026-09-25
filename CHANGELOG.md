@@ -15,12 +15,16 @@ Target release: 0.9.0-rc.2. This source tree is not yet a published release.
   reporting, and re-export through the versioned API.
 
 ### Changed
+- Grouped internal HTTP API modules and organized operator and maintainer docs
+  without changing the public SDK or `/api/v1` contract.
 - Raised the default runtime capacity to two active jobs while limiting CUDA to one.
 - Re-export now reconciles only files previously managed by the same job.
 - Split the local API adapter into focused assembly, authentication, runtime,
   job, event, and worker modules without changing the `/api/v1` boundary.
 
 ### Security
+- Refreshed the Web lock and pinned fixed `js-yaml` and `@redocly/openapi-core`
+  versions after the September dependency audit.
 - Reject canonical aliases of the source directory and linked export destinations.
 - Neutralize spreadsheet formulas in CSV reports while preserving JSON values.
 - Keep the experimental Web token in browser memory and out of WebSocket URLs.

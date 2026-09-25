@@ -6,11 +6,11 @@ import asyncio
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
-from .api_auth import validate_websocket
-from .api_models import EventResponse
-from .domain import JobStatus
-from .errors import JobNotFoundError
-from .service import VocalSieveService
+from ..domain import JobStatus
+from ..errors import JobNotFoundError
+from ..service import VocalSieveService
+from .auth import validate_websocket
+from .models import EventResponse
 
 
 def register_event_routes(app: FastAPI, session_token: str, service: VocalSieveService) -> None:

@@ -18,8 +18,8 @@ audit count or close an alert.
 
 Privileged self-hosted workflows install Python dependencies with `uv sync
 --frozen` before any signing secret is exposed. Container base overrides must use
-verified digests. The Web lock currently resolves the high-severity `nanoid`
-advisory at `3.3.18`; the Python lock keeps pip and setuptools at their audited
+verified digests. The Web lock pins fixed versions of `nanoid`, `js-yaml`, and
+`@redocly/openapi-core`; the Python lock keeps pip and setuptools at their audited
 fixed versions.
 
 ## Required validation

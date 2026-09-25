@@ -51,7 +51,7 @@ CI 产物和本地构建的压缩包都不属于 Release。
 | macOS | 实验性支持，不属于发布门禁 |
 
 源码安装需要 Python 3.11 或 3.12。原生运行需要在 `PATH` 中提供 FFmpeg；
-参见 [FFMPEG.md](docs/FFMPEG.md) 和 [CUDA.md](docs/CUDA.md)。
+参见 [FFMPEG.md](docs/guides/FFMPEG.md) 和 [CUDA.md](docs/guides/CUDA.md)。
 
 ## 快速开始
 
@@ -153,7 +153,7 @@ docker compose --profile cpu up --build
 
 在装有 NVIDIA Container Toolkit 的主机上使用 `--profile gpu`。服务只绑定
 `127.0.0.1:8765`；`/data/input` 为只读挂载，输出、状态与模型缓存使用独立挂载。
-参见 [DOCKER.md](docs/DOCKER.md)。
+参见 [DOCKER.md](docs/guides/DOCKER.md)。
 
 ## 开发
 
@@ -167,8 +167,8 @@ npm --prefix web ci
 npm --prefix web run build
 ```
 
-私有语料测试流程及公开边界见 [BENCHMARK.md](docs/BENCHMARK.md)。本 README 不会把
-本地 benchmark 等同于发布门禁或公开 Release。
+私有语料测试流程及公开边界见 [BENCHMARK.md](docs/maintainers/BENCHMARK.md)。
+本 README 不会把本地 benchmark 等同于发布门禁或公开 Release。
 
 ## 项目维护
 
@@ -180,13 +180,15 @@ npm --prefix web run build
 
 ## 文档
 
-- [筛选与淘汰原因](docs/FILTERING.md)
-- [本地 API 与安全](docs/API.md)
-- [CUDA 配置](docs/CUDA.md)
-- [FFmpeg 配置与来源](docs/FFMPEG.md)
-- [容器运行](docs/DOCKER.md)
-- [依赖策略](docs/DEPENDENCIES.md)
-- [发布流程](docs/RELEASE.md)
+- [文档索引](docs/README.md)
+- [代码结构与公共边界](docs/maintainers/ARCHITECTURE.md)
+- [筛选与淘汰原因](docs/guides/FILTERING.md)
+- [本地 API 与安全](docs/guides/API.md)
+- [CUDA 配置](docs/guides/CUDA.md)
+- [FFmpeg 配置与来源](docs/guides/FFMPEG.md)
+- [容器运行](docs/guides/DOCKER.md)
+- [依赖策略](docs/maintainers/DEPENDENCIES.md)
+- [发布流程](docs/maintainers/RELEASE.md)
 - [安全策略](SECURITY.md)
 - [参与贡献](CONTRIBUTING.md)
 
