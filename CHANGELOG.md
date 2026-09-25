@@ -25,6 +25,8 @@ Target release: 0.9.0-rc.2. This source tree is not yet a published release.
 ### Security
 - Refreshed the Python test-client dependency and lock to resolve the
   September audit findings.
+- Upgraded the container's PCRE2 library from the distribution security repository
+  during image builds.
 - Refreshed the Web lock and pinned fixed `js-yaml` and `@redocly/openapi-core`
   versions after the September dependency audit.
 - Reject canonical aliases of the source directory and linked export destinations.
