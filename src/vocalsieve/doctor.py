@@ -85,7 +85,7 @@ def _ffmpeg_check(ffmpeg: str | None) -> Check:
         return Check(
             "FFmpeg",
             False,
-            "not found; see docs/FFMPEG.md",
+            "not found; see docs/guides/FFMPEG.md",
             action="Install FFmpeg or use the Windows portable package that includes it.",
         )
     try:
@@ -161,7 +161,7 @@ def run_diagnostics(
                 action=(
                     "No action required."
                     if compute_types
-                    else "Install the CUDA 12 and cuDNN 9 runtimes described in docs/CUDA.md."
+                    else "Install the CUDA 12 and cuDNN 9 runtimes described in docs/guides/CUDA.md."
                 ),
             )
         )
@@ -170,9 +170,9 @@ def run_diagnostics(
             Check(
                 "CUDA capability",
                 False,
-                f"unavailable: {exc}; see docs/CUDA.md",
+                f"unavailable: {exc}; see docs/guides/CUDA.md",
                 required=False,
-                action="Install the CUDA 12 and cuDNN 9 runtimes described in docs/CUDA.md.",
+                action="Install the CUDA 12 and cuDNN 9 runtimes described in docs/guides/CUDA.md.",
             )
         )
     checks.extend(_windows_cuda_libraries())

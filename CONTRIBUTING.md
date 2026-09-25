@@ -1,8 +1,8 @@
 # Contributing
 
 Dependency updates follow the risk and validation policy in
-[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md). Automated update pull requests are
-disabled; use a maintainer-controlled `chore/dependency-maintenance-YYYYMMDD`
+[dependency maintenance](docs/maintainers/DEPENDENCIES.md). Automated update pull
+requests are disabled; use a maintainer-controlled `chore/dependency-maintenance-YYYYMMDD`
 branch when the weekly security workflow, a vulnerability alert, or release
 preparation identifies an update.
 

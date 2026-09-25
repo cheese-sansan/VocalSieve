@@ -7,10 +7,10 @@ from dataclasses import asdict
 
 from fastapi import Depends, FastAPI, Query
 
-from . import __version__
-from .api_models import CheckResponse, HealthResponse, ModelResponse, RuntimeStatusResponse
-from .doctor import run_diagnostics
-from .service import VocalSieveService
+from .. import __version__
+from ..doctor import run_diagnostics
+from ..service import VocalSieveService
+from .models import CheckResponse, HealthResponse, ModelResponse, RuntimeStatusResponse
 
 MODELS = (
     ModelResponse(id="tiny", label="Tiny", approximate_vram_mb=1000),

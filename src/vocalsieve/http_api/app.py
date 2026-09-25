@@ -12,16 +12,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
-from . import __version__
-from .api_auth import ALLOWED_WEB_ORIGINS, make_token_dependency
-from .api_events import register_event_routes
-from .api_jobs import register_job_routes
-from .api_models import ErrorResponse, EventResponse
-from .api_runtime import register_runtime_routes
-from .api_workers import WorkerState
-from .domain import RuntimePolicy
-from .logging_config import configure_file_logging
-from .service import VocalSieveService
+from .. import __version__
+from ..domain import RuntimePolicy
+from ..logging_config import configure_file_logging
+from ..service import VocalSieveService
+from .auth import ALLOWED_WEB_ORIGINS, make_token_dependency
+from .events import register_event_routes
+from .jobs import register_job_routes
+from .models import ErrorResponse, EventResponse
+from .runtime import register_runtime_routes
+from .workers import WorkerState
 
 
 def _register_error_handlers(app: FastAPI) -> None:

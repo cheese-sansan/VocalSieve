@@ -55,7 +55,7 @@ archives are not releases.
 | macOS | Experimental; outside the release gate |
 
 Python 3.11 or 3.12 is required for source installs. Native use requires FFmpeg on
-`PATH`; see [FFMPEG.md](docs/FFMPEG.md) and [CUDA.md](docs/CUDA.md).
+`PATH`; see [FFMPEG.md](docs/guides/FFMPEG.md) and [CUDA.md](docs/guides/CUDA.md).
 
 ## Quick start
 
@@ -165,7 +165,7 @@ docker compose --profile cpu up --build
 
 Use `--profile gpu` with NVIDIA Container Toolkit. The service binds to
 `127.0.0.1:8765`; `/data/input` is read-only, while output, state, and model cache
-use separate mounts. See [DOCKER.md](docs/DOCKER.md).
+use separate mounts. See [DOCKER.md](docs/guides/DOCKER.md).
 
 ## Development
 
@@ -180,8 +180,8 @@ npm --prefix web run build
 ```
 
 The private-corpus procedure and publication boundary are documented in
-[BENCHMARK.md](docs/BENCHMARK.md). This README does not treat a local benchmark as
-a release gate or public release.
+[BENCHMARK.md](docs/maintainers/BENCHMARK.md). This README does not treat a local
+benchmark as a release gate or public release.
 
 ## Stewardship
 
@@ -194,13 +194,15 @@ a need. Automated dependency update pull requests are disabled.
 
 ## Documentation
 
-- [Filtering and rejection reasons](docs/FILTERING.md)
-- [Local API and security](docs/API.md)
-- [CUDA setup](docs/CUDA.md)
-- [FFmpeg setup and provenance](docs/FFMPEG.md)
-- [Container operation](docs/DOCKER.md)
-- [Dependency policy](docs/DEPENDENCIES.md)
-- [Release process](docs/RELEASE.md)
+- [Documentation index](docs/README.md)
+- [Code structure and public boundaries](docs/maintainers/ARCHITECTURE.md)
+- [Filtering and rejection reasons](docs/guides/FILTERING.md)
+- [Local API and security](docs/guides/API.md)
+- [CUDA setup](docs/guides/CUDA.md)
+- [FFmpeg setup and provenance](docs/guides/FFMPEG.md)
+- [Container operation](docs/guides/DOCKER.md)
+- [Dependency policy](docs/maintainers/DEPENDENCIES.md)
+- [Release process](docs/maintainers/RELEASE.md)
 - [Security policy](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
 

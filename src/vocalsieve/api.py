@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from .api_app import create_app
+from .http_api.app import create_app
 
 __all__ = ["create_app"]
