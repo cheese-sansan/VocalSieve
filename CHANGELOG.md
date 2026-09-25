@@ -23,6 +23,8 @@ Target release: 0.9.0-rc.2. This source tree is not yet a published release.
   job, event, and worker modules without changing the `/api/v1` boundary.
 
 ### Security
+- Refreshed the Python test-client dependency and lock to resolve the
+  September audit findings.
 - Refreshed the Web lock and pinned fixed `js-yaml` and `@redocly/openapi-core`
   versions after the September dependency audit.
 - Reject canonical aliases of the source directory and linked export destinations.
