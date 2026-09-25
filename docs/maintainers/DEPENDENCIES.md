@@ -19,8 +19,8 @@ audit count or close an alert.
 Privileged self-hosted workflows install Python dependencies with `uv sync
 --frozen` before any signing secret is exposed. Container base overrides must use
 verified digests. The Web lock pins fixed versions of `nanoid`, `js-yaml`, and
-`@redocly/openapi-core`; the Python lock keeps pip and setuptools at their audited
-fixed versions.
+`@redocly/openapi-core`; the Python test client uses a fixed `httpx2` release.
+The Python lock keeps pip, setuptools, and AnyIO at their audited fixed versions.
 
 ## Required validation
 

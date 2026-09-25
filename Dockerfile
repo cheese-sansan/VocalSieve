@@ -3,7 +3,7 @@ ARG GPU_BASE=nvidia/cuda:12.8.1-cudnn-runtime-ubuntu24.04@sha256:ac55d124da4882b
 
 FROM ${CPU_BASE} AS cpu
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 VOCALSIEVE_CONTAINER=1
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libsndfile1 \
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libsndfile1 libpcre2-8-0 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 vocalsieve
 RUN mkdir -p /state /models /data/input /data/output \
@@ -21,7 +21,7 @@ FROM ${GPU_BASE} AS gpu
 ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 \
     VOCALSIEVE_CONTAINER=1 PATH=/opt/venv/bin:$PATH
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-venv ffmpeg libsndfile1 ca-certificates \
+    python3 python3-venv ffmpeg libsndfile1 libpcre2-8-0 ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && python3 -m venv /opt/venv \
     && useradd --create-home --uid 10001 vocalsieve
