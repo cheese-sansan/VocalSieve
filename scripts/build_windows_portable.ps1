@@ -91,6 +91,19 @@ if ($pfxBase64 -and $pfxPassword) {
     $pfxPath = Join-Path $env:TEMP "vocalsieve-signing-$PID.pfx"
     try {
         [System.IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($pfxBase64))
+        $signingIdentity = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            $pfxPath,
+            $pfxPassword,
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+        )
+        try {
+            if (-not $signingIdentity.HasPrivateKey -or $signingIdentity.Thumbprint -ne $publicCertificate.Thumbprint) {
+                throw "Signing PFX does not match the published prerelease certificate"
+            }
+        }
+        finally {
+            $signingIdentity.Dispose()
+        }
         $signTool = Get-ChildItem "${env:ProgramFiles(x86)}/Windows Kits/10/bin" -Recurse -Filter signtool.exe -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -match "\\x64\\" } | Sort-Object FullName -Descending | Select-Object -First 1
         if (-not $signTool) {

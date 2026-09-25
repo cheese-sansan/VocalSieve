@@ -23,6 +23,8 @@ Target release: 0.9.0-rc.2. This source tree is not yet a published release.
   job, event, and worker modules without changing the `/api/v1` boundary.
 
 ### Security
+- Rotated the prerelease signing certificate and checked that the private signing
+  identity matches the public certificate included in Windows packages.
 - Refreshed the Python test-client dependency and lock to resolve the
   September audit findings.
 - Upgraded the container's PCRE2 library from the distribution security repository
